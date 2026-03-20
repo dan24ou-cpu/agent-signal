@@ -13,6 +13,8 @@ import { registerDealDetector } from "./tools/deal-detector.js";
 import { registerWarnings } from "./tools/warnings.js";
 import { registerConstraintMatch } from "./tools/constraint-match.js";
 import { registerImportSession } from "./tools/import-session.js";
+import { registerSmartSession } from "./tools/smart-session.js";
+import { registerEvaluateAndCompare } from "./tools/evaluate-and-compare.js";
 
 export function registerAllTools(server: McpServer) {
   registerLogSession(server);
@@ -28,4 +30,6 @@ export function registerAllTools(server: McpServer) {
   registerWarnings(server);
   registerConstraintMatch(server);
   registerImportSession(server);
+  registerSmartSession(server);
+  registerEvaluateAndCompare(server);
 }

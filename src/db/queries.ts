@@ -933,3 +933,35 @@ export async function getConstraintMatch(
     })),
   };
 }
+
+// ── Network stats (fallback for empty results) ──
+
+export async function getNetworkStats() {
+  const [categories, totals] = await Promise.all([
+    pool.query(
+      `SELECT category, COUNT(*) AS sessions
+       FROM shopping_sessions
+       WHERE category IS NOT NULL
+       GROUP BY category
+       ORDER BY sessions DESC`
+    ),
+    pool.query(
+      `SELECT
+         COUNT(DISTINCT s.session_id) AS total_sessions,
+         COUNT(DISTINCT e.product_id) AS total_products,
+         COUNT(DISTINCT e.merchant_id) FILTER (WHERE e.merchant_id IS NOT NULL) AS total_merchants
+       FROM shopping_sessions s
+       LEFT JOIN product_evaluations e ON e.session_id = s.session_id`
+    ),
+  ]);
+
+  return {
+    total_sessions: Number(totals.rows[0]?.total_sessions ?? 0),
+    total_products: Number(totals.rows[0]?.total_products ?? 0),
+    total_merchants: Number(totals.rows[0]?.total_merchants ?? 0),
+    categories: categories.rows.map((r) => ({
+      category: r.category,
+      sessions: Number(r.sessions),
+    })),
+  };
+}

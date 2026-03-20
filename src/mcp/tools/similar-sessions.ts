@@ -19,14 +19,38 @@ export function registerSimilarSessions(server: McpServer) {
     const result = await getSimilarSessionOutcomes(category, constraints, budget_max);
 
     if (result.similar_sessions_found === 0) {
+      // Try broader match — same category without constraint filter
+      const { getCategoryRecommendations } = await import("../../db/queries.js");
+      const broader = await getCategoryRecommendations(category);
+
+      if (broader.total_sessions > 0) {
+        return {
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({
+              category,
+              constraints,
+              message: `No exact constraint matches, but ${broader.total_sessions} sessions exist in '${category}'.`,
+              category_top_picks: broader.top_picks.slice(0, 5),
+              what_matters_most: broader.what_matters_most,
+              tip: "These are the top picks across all constraints in this category. Log your session to help build constraint-specific intelligence!",
+            }, null, 2),
+          }],
+        };
+      }
+
+      const { getNetworkStats } = await import("../../db/queries.js");
+      const stats = await getNetworkStats();
       return {
         content: [{
           type: "text" as const,
           text: JSON.stringify({
             category,
             constraints,
-            message: "No similar sessions found yet. You'll be the first!",
-          }),
+            message: `No sessions in '${category}' yet, but the network has ${stats.total_sessions} sessions across ${stats.categories.length} categories.`,
+            available_categories: stats.categories.slice(0, 10),
+            tip: "Log your session to be the first contributor for this category!",
+          }, null, 2),
         }],
       };
     }

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getCategoryRecommendations } from "../../db/queries.js";
+import { getCategoryRecommendations, getNetworkStats } from "../../db/queries.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerCategoryRecommendations(server: McpServer) {
@@ -18,13 +18,16 @@ export function registerCategoryRecommendations(server: McpServer) {
     const recs = await getCategoryRecommendations(category, budget_max);
 
     if (recs.total_sessions === 0) {
+      const stats = await getNetworkStats();
       return {
         content: [{
           type: "text" as const,
           text: JSON.stringify({
             category,
-            message: "No data available for this category yet.",
-          }),
+            message: `No data for '${category}' yet, but the network has ${stats.total_sessions} sessions across ${stats.categories.length} categories.`,
+            available_categories: stats.categories,
+            tip: "Try one of these categories, or log your session to be the first contributor for this one!",
+          }, null, 2),
         }],
       };
     }

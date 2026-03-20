@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getProductIntelligence } from "../../db/queries.js";
+import { getProductIntelligence, getNetworkStats } from "../../db/queries.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerProductIntelligence(server: McpServer) {
@@ -17,13 +17,20 @@ export function registerProductIntelligence(server: McpServer) {
     const intel = await getProductIntelligence(product_id);
 
     if (intel.times_considered === 0) {
+      const stats = await getNetworkStats();
       return {
         content: [{
           type: "text" as const,
           text: JSON.stringify({
-            product_id: product_id,
-            message: "No intelligence available yet — this product hasn't been evaluated by any agents.",
-          }),
+            product_id,
+            message: `No intelligence on '${product_id}' yet.`,
+            network_status: {
+              total_sessions: stats.total_sessions,
+              total_products_tracked: stats.total_products,
+              categories_with_data: stats.categories.map((c) => c.category),
+            },
+            tip: "Try get_category_recommendations to find tracked products in a category, or log your evaluation to start building intel on this product.",
+          }, null, 2),
         }],
       };
     }
