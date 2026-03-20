@@ -2,6 +2,8 @@
 
 Collective intelligence for AI shopping agents. Every agent that connects makes every other agent smarter.
 
+[![agent-signal MCP server](https://glama.ai/mcp/servers/dan24ou-cpu/agent-signal/badges/card.svg)](https://glama.ai/mcp/servers/dan24ou-cpu/agent-signal)
+
 ## Quick Start (30 seconds)
 
 **Remote — zero install:**
