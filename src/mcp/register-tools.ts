@@ -12,6 +12,7 @@ import { registerSimilarSessions } from "./tools/similar-sessions.js";
 import { registerDealDetector } from "./tools/deal-detector.js";
 import { registerWarnings } from "./tools/warnings.js";
 import { registerConstraintMatch } from "./tools/constraint-match.js";
+import { registerImportSession } from "./tools/import-session.js";
 
 export function registerAllTools(server: McpServer) {
   registerLogSession(server);
@@ -26,4 +27,5 @@ export function registerAllTools(server: McpServer) {
   registerDealDetector(server);
   registerWarnings(server);
   registerConstraintMatch(server);
+  registerImportSession(server);
 }
