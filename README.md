@@ -99,7 +99,7 @@ Merchant-facing analytics at `https://agent-signal-production.up.railway.app/api
 ## Self-Hosting
 
 ```bash
-git clone https://github.com/danhampton/agent-signal.git
+git clone https://github.com/dan24ou-cpu/agent-signal.git
 cd agent-signal
 npm install
 cp .env.example .env  # set DATABASE_URL to your PostgreSQL
