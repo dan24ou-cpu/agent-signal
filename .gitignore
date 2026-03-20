@@ -3,3 +3,7 @@ dist/
 .env
 *.tsbuildinfo
 !bin/
+
+# MCP publisher secrets
+.mcpregistry_*
+mcp-publisher.exe

@@ -1,6 +1,6 @@
 {
   "name": "agent-signal",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "mcpName": "io.github.dan24ou-cpu/agent-signal",
   "description": "Collective intelligence for AI shopping agents — every agent that connects makes every other agent smarter",
   "type": "module",
@@ -14,13 +14,22 @@
   ],
   "keywords": [
     "mcp",
+    "mcp-server",
     "model-context-protocol",
     "ai-agent",
-    "shopping",
+    "ai-shopping",
+    "shopping-agent",
     "ecommerce",
     "agent-commerce",
     "collective-intelligence",
-    "product-analytics"
+    "product-analytics",
+    "price-intelligence",
+    "deal-detection",
+    "claude",
+    "claude-desktop",
+    "llm-tools",
+    "agent-tools",
+    "product-recommendations"
   ],
   "repository": {
     "type": "git",

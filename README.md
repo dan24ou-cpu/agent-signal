@@ -1,10 +1,14 @@
 # AgentSignal
 
-Collective intelligence for AI shopping agents. Every agent that connects makes every other agent smarter.
+**The collective intelligence layer for AI shopping agents.**
+
+Every agent that connects makes every other agent smarter. 1,200+ shopping sessions, 95 products, 50 merchants, 10 categories — and growing.
+
+> **Why this exists:** When AI agents shop for users, each agent starts from zero. AgentSignal pools decision signals across all agents so every session benefits from what every other agent has already learned — selection rates, rejection patterns, price intelligence, merchant reliability, and proven constraint matches.
 
 ## Quick Start (30 seconds)
 
-**Remote — zero install:**
+**Remote — zero install, instant intelligence:**
 ```json
 {
   "mcpServers": {
@@ -32,55 +36,89 @@ npx agent-signal
 }
 ```
 
-## What It Does
+## One Call to Start Shopping Smarter
 
-When AI agents shop on behalf of users, each agent starts from scratch. AgentSignal pools decision signals across all agents so every session benefits from collective intelligence.
+The `smart_shopping_session` tool logs your session AND returns all available intelligence in a single call:
 
-### Read Tools — Make Better Decisions
+```
+smart_shopping_session({
+  raw_query: "lightweight running shoes with good cushioning",
+  category: "footwear/running",
+  budget_max: 200,
+  constraints: ["lightweight", "cushioned"]
+})
+```
+
+**Returns:**
+- Your session ID for subsequent logging
+- Top picks from other agents in that category
+- What constraints and factors mattered most
+- How similar sessions ended (purchased vs abandoned)
+- Network-wide stats
+
+## 15 MCP Tools
+
+### Smart Combo Tools (recommended)
+
+| Tool | What it does |
+|------|-------------|
+| `smart_shopping_session` | Start session + get category intelligence + similar session outcomes — all in one call |
+| `evaluate_and_compare` | Log product evaluation + get product intelligence + deal verdict — all in one call |
+
+### Read Tools — Leverage Collective Intelligence
 
 | Tool | What it tells you |
 |------|-------------------|
 | `get_product_intelligence` | Selection rate, rejection reasons, which competitors beat it and why |
-| `get_category_recommendations` | Top picks in a category, what decision factors matter, common requirements |
-| `check_merchant_reliability` | Stock reliability, selection rate, purchase outcomes by merchant |
+| `get_category_recommendations` | Top picks, decision factors, common requirements, average budgets |
+| `check_merchant_reliability` | Stock accuracy, selection rate, purchase outcomes by merchant |
 | `get_similar_session_outcomes` | What agents with similar constraints ended up choosing |
-| `detect_deal` | Is this price good? Compares against historical prices from all agents |
+| `detect_deal` | Price verdict against historical data — best_price_ever to above_average |
 | `get_warnings` | Stock issues, high rejection rates, abandonment signals |
-| `get_constraint_match` | Exact match on your constraints — skip the search if a proven answer exists |
+| `get_constraint_match` | Products that exactly match your constraints — skip the search |
 
 ### Write Tools — Contribute Back
 
 | Tool | What it captures |
 |------|-----------------|
 | `log_shopping_session` | Shopping intent, constraints, budget, exclusions |
-| `log_product_evaluation` | Product considered, match score, selected/rejected/shortlisted + why |
+| `log_product_evaluation` | Product considered, match score, disposition + rejection reason |
 | `log_comparison` | Products compared, dimensions, winner, deciding factor |
 | `log_outcome` | Final result — purchased, recommended, abandoned, or deferred |
+| `import_completed_session` | Bulk import a completed session retroactively |
 | `get_session_summary` | Retrieve full session details |
 
-## How Agents Use It
+## Example: Full Agent Workflow
 
-**At the start of a shopping task:**
 ```
-1. get_category_recommendations("footwear/running")
-2. get_constraint_match("footwear/running", ["cushioned", "wide fit"], 150)
-3. log_shopping_session(...)
-```
+# 1. Start smart — one call gets you session ID + intelligence
+smart_shopping_session(category: "electronics/headphones", constraints: ["noise-cancelling", "wireless"], budget_max: 400)
 
-**While evaluating products:**
-```
-4. get_product_intelligence("hoka-clifton-9")
-5. detect_deal("hoka-clifton-9", 129.99)
-6. get_warnings(product_id: "hoka-clifton-9", merchant_id: "amazon")
-7. log_product_evaluation(...)
+# 2. Evaluate products — get intel as you log
+evaluate_and_compare(session_id: "...", product_id: "sony-wh1000xm5", price_at_time: 349, disposition: "selected")
+evaluate_and_compare(session_id: "...", product_id: "bose-qc45", price_at_time: 279, disposition: "rejected", rejection_reason: "inferior ANC")
+
+# 3. Compare and close
+log_comparison(products_compared: ["sony-wh1000xm5", "bose-qc45"], winner: "sony-wh1000xm5", deciding_factor: "noise cancellation quality")
+log_outcome(session_id: "...", outcome_type: "purchased", product_chosen_id: "sony-wh1000xm5")
 ```
 
-**Before recommending:**
-```
-8. check_merchant_reliability("amazon")
-9. log_comparison(...)
-10. log_outcome(...)
-```
+Every step feeds the network. The next agent shopping for headphones benefits from your data.
+
+## Categories with Active Intelligence
+
+| Category | Sessions |
+|----------|----------|
+| footwear/running | 150+ |
+| electronics/headphones | 140+ |
+| gaming/accessories | 130+ |
+| electronics/tablets | 130+ |
+| home/furniture/desks | 120+ |
+| fitness/wearables | 118+ |
+| electronics/phones | 115+ |
+| home/smart-home | 107+ |
+| kitchen/appliances | 105+ |
+| electronics/laptops | 98+ |
 
 ## REST API
 
@@ -88,8 +126,8 @@ Merchant-facing analytics at `https://agent-signal-production.up.railway.app/api
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/products/:id/insights` | Product analytics — consideration rate, rejection reasons, competitors |
-| `GET /api/categories/:category/trends` | Category trends — top factors, budgets, trending attributes |
+| `GET /api/products/:id/insights` | Product analytics — consideration rate, rejection reasons |
+| `GET /api/categories/:category/trends` | Category trends — top factors, budgets, attributes |
 | `GET /api/competitive/lost-to?product_id=X` | Competitive losses — what X loses to and why |
 | `GET /api/sessions` | Recent sessions (paginated) |
 | `GET /api/sessions/:id` | Full session detail |
@@ -113,7 +151,7 @@ npm run dev            # starts API + MCP server on port 3100
 - **MCP Server** — Stdio transport (local) + Streamable HTTP (remote)
 - **REST API** — Express on the same port
 - **Database** — PostgreSQL (Neon-compatible)
-- **12 MCP tools** — 7 read + 5 write
+- **15 MCP tools** — 9 read + 6 write
 
 ## License
 
