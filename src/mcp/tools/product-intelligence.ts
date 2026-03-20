@@ -1,0 +1,38 @@
+import { z } from "zod";
+import { getProductIntelligence } from "../../db/queries.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+
+export function registerProductIntelligence(server: McpServer) {
+  server.registerTool("get_product_intelligence", {
+    title: "Get Product Intelligence",
+    description:
+      "Get crowdsourced intelligence about a product from other AI agents' shopping sessions. " +
+      "Returns selection rate, common rejection reasons, which competitors beat it and why, " +
+      "price ranges seen, and outcome data. Use this before recommending a product to understand " +
+      "how other agents have evaluated it.",
+    inputSchema: {
+      product_id: z.string().describe("Product identifier to look up, e.g. 'sony-wh1000xm5'"),
+    },
+  }, async ({ product_id }) => {
+    const intel = await getProductIntelligence(product_id);
+
+    if (intel.times_considered === 0) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            product_id: product_id,
+            message: "No intelligence available yet — this product hasn't been evaluated by any agents.",
+          }),
+        }],
+      };
+    }
+
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(intel, null, 2),
+      }],
+    };
+  });
+}
