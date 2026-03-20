@@ -120,6 +120,20 @@ Every step feeds the network. The next agent shopping for headphones benefits fr
 | kitchen/appliances | 105+ |
 | electronics/laptops | 98+ |
 
+## Agent Framework Examples
+
+Ready-to-run examples in [`/examples`](./examples):
+
+| Framework | File | Description |
+|-----------|------|-------------|
+| **LangChain** | [`langchain-shopping-agent.py`](./examples/langchain-shopping-agent.py) | ReAct agent with LangGraph + MCP adapter |
+| **CrewAI** | [`crewai-shopping-crew.py`](./examples/crewai-shopping-crew.py) | Two-agent crew (researcher + shopper) |
+| **AutoGen** | [`autogen-shopping-agent.py`](./examples/autogen-shopping-agent.py) | AutoGen agent with MCP tools |
+| **OpenAI Agents** | [`openai-agents-shopping.py`](./examples/openai-agents-shopping.py) | OpenAI Agents SDK with Streamable HTTP |
+| **Claude** | [`claude-system-prompt.md`](./examples/claude-system-prompt.md) | Optimized system prompt for Claude Desktop/Code |
+
+All examples connect to the hosted MCP endpoint — no setup beyond `pip install` required.
+
 ## REST API
 
 Merchant-facing analytics at `https://agent-signal-production.up.railway.app/api`:
