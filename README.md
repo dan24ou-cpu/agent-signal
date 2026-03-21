@@ -56,7 +56,7 @@ smart_shopping_session({
 - How similar sessions ended (purchased vs abandoned)
 - Network-wide stats
 
-## 15 MCP Tools
+## 19 MCP Tools
 
 ### Smart Combo Tools (recommended)
 
@@ -65,7 +65,7 @@ smart_shopping_session({
 | `smart_shopping_session` | Start session + get category intelligence + similar session outcomes — all in one call |
 | `evaluate_and_compare` | Log product evaluation + get product intelligence + deal verdict — all in one call |
 
-### Read Tools — Leverage Collective Intelligence
+### Buyer Intelligence — Shop Smarter
 
 | Tool | What it tells you |
 |------|-------------------|
@@ -76,6 +76,15 @@ smart_shopping_session({
 | `detect_deal` | Price verdict against historical data — best_price_ever to above_average |
 | `get_warnings` | Stock issues, high rejection rates, abandonment signals |
 | `get_constraint_match` | Products that exactly match your constraints — skip the search |
+
+### Seller Intelligence — Understand Your Market
+
+| Tool | What it tells you |
+|------|-------------------|
+| `get_competitive_landscape` | Category rank, head-to-head win rate, who beats you and why, price positioning |
+| `get_rejection_analysis` | Why agents reject your product, weekly trends, what they chose instead |
+| `get_category_demand` | What agents are searching for, unmet needs, budget distribution, market gaps |
+| `get_merchant_scorecard` | Full merchant report — stock reliability, price competitiveness, selection rates by category |
 
 ### Write Tools — Contribute Back
 
@@ -104,6 +113,26 @@ log_outcome(session_id: "...", outcome_type: "purchased", product_chosen_id: "so
 ```
 
 Every step feeds the network. The next agent shopping for headphones benefits from your data.
+
+## Example: Seller Intelligence Workflow
+
+```
+# 1. How is my product performing vs competitors?
+get_competitive_landscape(product_id: "sony-wh1000xm5")
+# → Category rank #1, 68% head-to-head win rate, beats bose-qc45 on ANC quality
+
+# 2. Why are agents rejecting my product?
+get_rejection_analysis(product_id: "bose-qc45")
+# → 45% rejected for "inferior ANC", agents chose sony-wh1000xm5 instead 3x more
+
+# 3. What do agents want in my category?
+get_category_demand(category: "electronics/headphones")
+# → Top demands: noise-cancelling (89%), wireless (82%), unmet need: "spatial audio"
+
+# 4. How does my store perform?
+get_merchant_scorecard(merchant_id: "amazon")
+# → 34% selection rate, 2% out-of-stock, cheapest option 41% of the time
+```
 
 ## Categories with Active Intelligence
 
@@ -165,7 +194,7 @@ npm run dev            # starts API + MCP server on port 3100
 - **MCP Server** — Stdio transport (local) + Streamable HTTP (remote)
 - **REST API** — Express on the same port
 - **Database** — PostgreSQL (Neon-compatible)
-- **15 MCP tools** — 9 read + 6 write
+- **19 MCP tools** — 13 read (buyer + seller intelligence) + 6 write
 
 ## License
 

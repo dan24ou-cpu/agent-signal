@@ -15,6 +15,10 @@ import { registerConstraintMatch } from "./tools/constraint-match.js";
 import { registerImportSession } from "./tools/import-session.js";
 import { registerSmartSession } from "./tools/smart-session.js";
 import { registerEvaluateAndCompare } from "./tools/evaluate-and-compare.js";
+import { registerCompetitiveLandscape } from "./tools/competitive-landscape.js";
+import { registerRejectionAnalysis } from "./tools/rejection-analysis.js";
+import { registerCategoryDemand } from "./tools/category-demand.js";
+import { registerMerchantScorecard } from "./tools/merchant-scorecard.js";
 
 export function registerAllTools(server: McpServer) {
   registerLogSession(server);
@@ -32,4 +36,9 @@ export function registerAllTools(server: McpServer) {
   registerImportSession(server);
   registerSmartSession(server);
   registerEvaluateAndCompare(server);
+  // Seller intelligence
+  registerCompetitiveLandscape(server);
+  registerRejectionAnalysis(server);
+  registerCategoryDemand(server);
+  registerMerchantScorecard(server);
 }

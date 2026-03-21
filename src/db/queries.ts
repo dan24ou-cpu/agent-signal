@@ -934,6 +934,428 @@ export async function getConstraintMatch(
   };
 }
 
+// ── Seller Intelligence ──
+
+export async function getCompetitiveLandscape(productId: string) {
+  const [productStats, headToHead, categoryContext, pricePosition] =
+    await Promise.all([
+      // How this product performs overall
+      pool.query(
+        `SELECT
+           COUNT(*) AS times_considered,
+           COUNT(*) FILTER (WHERE disposition = 'selected') AS times_selected,
+           COUNT(*) FILTER (WHERE disposition = 'rejected') AS times_rejected,
+           COUNT(*) FILTER (WHERE disposition = 'shortlisted') AS times_shortlisted,
+           ROUND(AVG(match_score), 2) AS avg_match_score,
+           ROUND(AVG(price_at_time), 2) AS avg_price
+         FROM product_evaluations
+         WHERE product_id = $1`,
+        [productId]
+      ),
+      // Head-to-head comparison results
+      pool.query(
+        `SELECT
+           c.winner_product_id,
+           COUNT(*) AS wins,
+           ARRAY_AGG(DISTINCT c.deciding_factor) AS deciding_factors
+         FROM comparisons c
+         WHERE $1 = ANY(SELECT jsonb_array_elements_text(c.products_compared))
+         GROUP BY c.winner_product_id
+         ORDER BY wins DESC
+         LIMIT 10`,
+        [productId]
+      ),
+      // Category-level context: where does this product rank?
+      pool.query(
+        `WITH product_cat AS (
+           SELECT DISTINCT s.category
+           FROM product_evaluations e
+           JOIN shopping_sessions s ON s.session_id = e.session_id
+           WHERE e.product_id = $1
+           LIMIT 1
+         )
+         SELECT e.product_id,
+                COUNT(*) FILTER (WHERE e.disposition = 'selected') AS selections,
+                COUNT(*) AS considerations,
+                ROUND(AVG(e.price_at_time), 2) AS avg_price
+         FROM product_evaluations e
+         JOIN shopping_sessions s ON s.session_id = e.session_id
+         WHERE s.category = (SELECT category FROM product_cat)
+         GROUP BY e.product_id
+         ORDER BY selections DESC
+         LIMIT 15`,
+        [productId]
+      ),
+      // Price comparison vs competitors in same sessions
+      pool.query(
+        `WITH same_sessions AS (
+           SELECT DISTINCT session_id FROM product_evaluations WHERE product_id = $1
+         )
+         SELECT e.product_id,
+                ROUND(AVG(e.price_at_time), 2) AS avg_price,
+                COUNT(*) FILTER (WHERE e.disposition = 'selected') AS times_selected
+         FROM product_evaluations e
+         WHERE e.session_id IN (SELECT session_id FROM same_sessions)
+           AND e.product_id != $1
+           AND e.price_at_time IS NOT NULL
+         GROUP BY e.product_id
+         ORDER BY times_selected DESC
+         LIMIT 10`,
+        [productId]
+      ),
+    ]);
+
+  const stats = productStats.rows[0];
+  const considered = Number(stats?.times_considered ?? 0);
+  const selected = Number(stats?.times_selected ?? 0);
+
+  // Calculate win rate in head-to-head
+  const totalComparisons = headToHead.rows.reduce((sum, r) => sum + Number(r.wins), 0);
+  const myWins = headToHead.rows.find((r) => r.winner_product_id === productId);
+  const myWinCount = myWins ? Number(myWins.wins) : 0;
+
+  // Find rank in category
+  const rank = categoryContext.rows.findIndex((r) => r.product_id === productId) + 1;
+
+  return {
+    product_id: productId,
+    performance: {
+      times_considered: considered,
+      times_selected: selected,
+      times_rejected: Number(stats?.times_rejected ?? 0),
+      selection_rate: considered > 0 ? Math.round((selected / considered) * 100) : 0,
+      avg_match_score: stats?.avg_match_score ? Number(stats.avg_match_score) : null,
+      avg_price: stats?.avg_price ? Number(stats.avg_price) : null,
+    },
+    competitive_position: {
+      category_rank: rank || null,
+      category_total_products: categoryContext.rows.length,
+      head_to_head_win_rate: totalComparisons > 0
+        ? Math.round((myWinCount / totalComparisons) * 100)
+        : null,
+      total_comparisons: totalComparisons,
+    },
+    losses_to: headToHead.rows
+      .filter((r) => r.winner_product_id !== productId)
+      .map((r) => ({
+        product_id: r.winner_product_id,
+        times_lost: Number(r.wins),
+        lost_because: r.deciding_factors,
+      })),
+    price_vs_competitors: pricePosition.rows.map((r) => ({
+      product_id: r.product_id,
+      avg_price: Number(r.avg_price),
+      times_selected: Number(r.times_selected),
+    })),
+  };
+}
+
+export async function getRejectionAnalysis(productId: string) {
+  const [rejectionBreakdown, rejectionTrend, rejectedVsSelected, merchantBreakdown] =
+    await Promise.all([
+      // Rejection reasons with counts
+      pool.query(
+        `SELECT rejection_reason, COUNT(*) AS count,
+                ROUND(COUNT(*)::numeric / NULLIF(SUM(COUNT(*)) OVER (), 0) * 100, 1) AS pct
+         FROM product_evaluations
+         WHERE product_id = $1 AND disposition = 'rejected' AND rejection_reason IS NOT NULL
+         GROUP BY rejection_reason
+         ORDER BY count DESC`,
+        [productId]
+      ),
+      // Rejection rate over time (last 4 weeks, weekly)
+      pool.query(
+        `SELECT
+           DATE_TRUNC('week', e.created_at) AS week,
+           COUNT(*) AS total_evals,
+           COUNT(*) FILTER (WHERE e.disposition = 'rejected') AS rejections,
+           ROUND(COUNT(*) FILTER (WHERE e.disposition = 'rejected')::numeric / NULLIF(COUNT(*), 0) * 100, 1) AS rejection_rate
+         FROM product_evaluations e
+         WHERE e.product_id = $1
+           AND e.created_at > NOW() - INTERVAL '28 days'
+         GROUP BY DATE_TRUNC('week', e.created_at)
+         ORDER BY week DESC`,
+        [productId]
+      ),
+      // When rejected, what won instead?
+      pool.query(
+        `WITH rejected_sessions AS (
+           SELECT session_id FROM product_evaluations
+           WHERE product_id = $1 AND disposition = 'rejected'
+         )
+         SELECT e.product_id AS winner,
+                COUNT(*) AS times_chosen_instead,
+                ROUND(AVG(e.price_at_time), 2) AS winner_avg_price,
+                ROUND(AVG(e.match_score), 2) AS winner_avg_score
+         FROM product_evaluations e
+         WHERE e.session_id IN (SELECT session_id FROM rejected_sessions)
+           AND e.disposition = 'selected'
+           AND e.product_id != $1
+         GROUP BY e.product_id
+         ORDER BY times_chosen_instead DESC
+         LIMIT 5`,
+        [productId]
+      ),
+      // Rejection rate by merchant
+      pool.query(
+        `SELECT merchant_id,
+                COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE disposition = 'rejected') AS rejections,
+                ROUND(COUNT(*) FILTER (WHERE disposition = 'rejected')::numeric / NULLIF(COUNT(*), 0) * 100, 1) AS rejection_rate
+         FROM product_evaluations
+         WHERE product_id = $1 AND merchant_id IS NOT NULL
+         GROUP BY merchant_id
+         ORDER BY rejection_rate DESC`,
+        [productId]
+      ),
+    ]);
+
+  const totalRejections = rejectionBreakdown.rows.reduce((sum, r) => sum + Number(r.count), 0);
+
+  return {
+    product_id: productId,
+    total_rejections: totalRejections,
+    rejection_reasons: rejectionBreakdown.rows.map((r) => ({
+      reason: r.rejection_reason,
+      count: Number(r.count),
+      pct_of_rejections: Number(r.pct),
+    })),
+    weekly_trend: rejectionTrend.rows.map((r) => ({
+      week: r.week,
+      total_evaluations: Number(r.total_evals),
+      rejections: Number(r.rejections),
+      rejection_rate_pct: Number(r.rejection_rate),
+    })),
+    replaced_by: rejectedVsSelected.rows.map((r) => ({
+      product_id: r.winner,
+      times_chosen_instead: Number(r.times_chosen_instead),
+      avg_price: r.winner_avg_price ? Number(r.winner_avg_price) : null,
+      avg_match_score: r.winner_avg_score ? Number(r.winner_avg_score) : null,
+    })),
+    rejection_by_merchant: merchantBreakdown.rows.map((r) => ({
+      merchant_id: r.merchant_id,
+      total_evaluations: Number(r.total),
+      rejections: Number(r.rejections),
+      rejection_rate_pct: Number(r.rejection_rate),
+    })),
+  };
+}
+
+export async function getCategoryDemand(category: string) {
+  const [demandSignals, unmetNeeds, budgetDistribution, outcomePatterns, topProducts] =
+    await Promise.all([
+      // What constraints/features are agents searching for?
+      pool.query(
+        `SELECT value AS constraint, COUNT(*) AS demand_count
+         FROM shopping_sessions,
+              jsonb_array_elements_text(constraints) AS value
+         WHERE category = $1
+         GROUP BY value
+         ORDER BY demand_count DESC
+         LIMIT 15`,
+        [category]
+      ),
+      // Constraints in abandoned sessions (unmet needs)
+      pool.query(
+        `SELECT value AS constraint, COUNT(*) AS unmet_count
+         FROM shopping_sessions s
+         JOIN outcomes o ON o.session_id = s.session_id
+         CROSS JOIN jsonb_array_elements_text(s.constraints) AS value
+         WHERE s.category = $1 AND o.outcome_type = 'abandoned'
+         GROUP BY value
+         ORDER BY unmet_count DESC
+         LIMIT 10`,
+        [category]
+      ),
+      // Budget distribution
+      pool.query(
+        `SELECT
+           COUNT(*) AS total_sessions,
+           ROUND(AVG(budget_max), 2) AS avg_budget,
+           MIN(budget_max) AS min_budget,
+           MAX(budget_max) AS max_budget,
+           PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY budget_max) AS p25,
+           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY budget_max) AS median,
+           PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY budget_max) AS p75
+         FROM shopping_sessions
+         WHERE category = $1 AND budget_max IS NOT NULL`,
+        [category]
+      ),
+      // Outcome distribution
+      pool.query(
+        `SELECT o.outcome_type, COUNT(*) AS count,
+                ROUND(COUNT(*)::numeric / NULLIF(SUM(COUNT(*)) OVER (), 0) * 100, 1) AS pct
+         FROM outcomes o
+         JOIN shopping_sessions s ON s.session_id = o.session_id
+         WHERE s.category = $1
+         GROUP BY o.outcome_type
+         ORDER BY count DESC`,
+        [category]
+      ),
+      // Most demanded products (by consideration count)
+      pool.query(
+        `SELECT e.product_id,
+                COUNT(*) AS times_considered,
+                COUNT(*) FILTER (WHERE e.disposition = 'selected') AS times_selected,
+                ROUND(AVG(e.price_at_time), 2) AS avg_price,
+                ROUND(AVG(e.match_score), 2) AS avg_score
+         FROM product_evaluations e
+         JOIN shopping_sessions s ON s.session_id = e.session_id
+         WHERE s.category = $1
+         GROUP BY e.product_id
+         ORDER BY times_considered DESC
+         LIMIT 10`,
+        [category]
+      ),
+    ]);
+
+  const budget = budgetDistribution.rows[0];
+
+  return {
+    category,
+    total_sessions: Number(budget?.total_sessions ?? 0),
+    what_agents_want: demandSignals.rows.map((r) => ({
+      constraint: r.constraint,
+      demand_count: Number(r.demand_count),
+    })),
+    unmet_needs: unmetNeeds.rows.map((r) => ({
+      constraint: r.constraint,
+      abandoned_sessions: Number(r.unmet_count),
+    })),
+    budget_distribution: budget?.avg_budget ? {
+      avg: Number(budget.avg_budget),
+      median: budget.median ? Number(budget.median) : null,
+      p25: budget.p25 ? Number(budget.p25) : null,
+      p75: budget.p75 ? Number(budget.p75) : null,
+      min: Number(budget.min_budget),
+      max: Number(budget.max_budget),
+    } : null,
+    outcome_rates: outcomePatterns.rows.map((r) => ({
+      outcome: r.outcome_type,
+      count: Number(r.count),
+      pct: Number(r.pct),
+    })),
+    top_products: topProducts.rows.map((r) => ({
+      product_id: r.product_id,
+      times_considered: Number(r.times_considered),
+      times_selected: Number(r.times_selected),
+      selection_rate: Number(r.times_considered) > 0
+        ? Math.round((Number(r.times_selected) / Number(r.times_considered)) * 100)
+        : 0,
+      avg_price: r.avg_price ? Number(r.avg_price) : null,
+      avg_match_score: r.avg_score ? Number(r.avg_score) : null,
+    })),
+  };
+}
+
+export async function getMerchantScorecard(merchantId: string) {
+  const [overview, categoryBreakdown, stockIssues, priceCompetitiveness, topProducts] =
+    await Promise.all([
+      // Overall merchant stats
+      pool.query(
+        `SELECT
+           COUNT(*) AS total_evaluations,
+           COUNT(*) FILTER (WHERE disposition = 'selected') AS selections,
+           COUNT(*) FILTER (WHERE disposition = 'rejected') AS rejections,
+           COUNT(DISTINCT product_id) AS unique_products,
+           COUNT(DISTINCT e.session_id) AS sessions_appeared_in,
+           ROUND(AVG(match_score), 2) AS avg_match_score,
+           ROUND(AVG(price_at_time), 2) AS avg_price
+         FROM product_evaluations e
+         WHERE merchant_id = $1`,
+        [merchantId]
+      ),
+      // Performance by category
+      pool.query(
+        `SELECT s.category,
+                COUNT(*) AS evaluations,
+                COUNT(*) FILTER (WHERE e.disposition = 'selected') AS selections,
+                ROUND(COUNT(*) FILTER (WHERE e.disposition = 'selected')::numeric / NULLIF(COUNT(*), 0) * 100, 1) AS selection_rate
+         FROM product_evaluations e
+         JOIN shopping_sessions s ON s.session_id = e.session_id
+         WHERE e.merchant_id = $1
+         GROUP BY s.category
+         ORDER BY evaluations DESC`,
+        [merchantId]
+      ),
+      // Stock reliability
+      pool.query(
+        `SELECT
+           COUNT(*) AS total_checks,
+           COUNT(*) FILTER (WHERE in_stock = false) AS out_of_stock,
+           ROUND(COUNT(*) FILTER (WHERE in_stock = false)::numeric / NULLIF(COUNT(*), 0) * 100, 1) AS oos_rate
+         FROM product_evaluations
+         WHERE merchant_id = $1`,
+        [merchantId]
+      ),
+      // Price competitiveness: how often is this merchant the cheapest?
+      pool.query(
+        `WITH merchant_prices AS (
+           SELECT e.session_id, e.product_id, e.price_at_time,
+                  RANK() OVER (PARTITION BY e.session_id, e.product_id ORDER BY e.price_at_time ASC) AS price_rank
+           FROM product_evaluations e
+           WHERE e.price_at_time IS NOT NULL
+             AND e.session_id IN (SELECT DISTINCT session_id FROM product_evaluations WHERE merchant_id = $1)
+         )
+         SELECT
+           COUNT(*) FILTER (WHERE merchant_id = $1) AS total_price_comparisons,
+           COUNT(*) FILTER (WHERE merchant_id = $1 AND price_rank = 1) AS times_cheapest
+         FROM merchant_prices mp
+         JOIN product_evaluations e ON e.session_id = mp.session_id AND e.product_id = mp.product_id AND e.price_at_time = mp.price_at_time`,
+        [merchantId]
+      ),
+      // Best performing products at this merchant
+      pool.query(
+        `SELECT product_id,
+                COUNT(*) AS evaluations,
+                COUNT(*) FILTER (WHERE disposition = 'selected') AS selections,
+                ROUND(AVG(price_at_time), 2) AS avg_price
+         FROM product_evaluations
+         WHERE merchant_id = $1
+         GROUP BY product_id
+         ORDER BY selections DESC
+         LIMIT 10`,
+        [merchantId]
+      ),
+    ]);
+
+  const stats = overview.rows[0];
+  const totalEvals = Number(stats?.total_evaluations ?? 0);
+  const selections = Number(stats?.selections ?? 0);
+  const stock = stockIssues.rows[0];
+
+  return {
+    merchant_id: merchantId,
+    overview: {
+      total_evaluations: totalEvals,
+      selection_rate: totalEvals > 0 ? Math.round((selections / totalEvals) * 100) : 0,
+      unique_products: Number(stats?.unique_products ?? 0),
+      sessions_appeared_in: Number(stats?.sessions_appeared_in ?? 0),
+      avg_match_score: stats?.avg_match_score ? Number(stats.avg_match_score) : null,
+    },
+    stock_reliability: {
+      total_checks: Number(stock?.total_checks ?? 0),
+      out_of_stock_rate: Number(stock?.oos_rate ?? 0),
+    },
+    price_competitiveness: {
+      total_comparisons: Number(priceCompetitiveness.rows[0]?.total_price_comparisons ?? 0),
+      times_cheapest: Number(priceCompetitiveness.rows[0]?.times_cheapest ?? 0),
+    },
+    performance_by_category: categoryBreakdown.rows.map((r) => ({
+      category: r.category,
+      evaluations: Number(r.evaluations),
+      selections: Number(r.selections),
+      selection_rate: Number(r.selection_rate),
+    })),
+    top_products: topProducts.rows.map((r) => ({
+      product_id: r.product_id,
+      evaluations: Number(r.evaluations),
+      selections: Number(r.selections),
+      avg_price: r.avg_price ? Number(r.avg_price) : null,
+    })),
+  };
+}
+
 // ── Network stats (fallback for empty results) ──
 
 export async function getNetworkStats() {
