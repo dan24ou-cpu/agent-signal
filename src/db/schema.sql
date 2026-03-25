@@ -72,6 +72,18 @@ CREATE INDEX idx_outcomes_session ON outcomes(session_id);
 CREATE INDEX idx_outcomes_product ON outcomes(product_chosen_id);
 CREATE INDEX idx_outcomes_type ON outcomes(outcome_type);
 
+-- Category Misses (tracks queries for categories with no data)
+CREATE TABLE category_misses (
+  id SERIAL PRIMARY KEY,
+  category VARCHAR(255) NOT NULL,
+  agent_platform VARCHAR(100),
+  query_context TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_category_misses_category ON category_misses(category);
+CREATE INDEX idx_category_misses_created ON category_misses(created_at);
+
 -- Product Insights (pre-computed aggregates)
 CREATE TABLE product_insights (
   product_id VARCHAR(255) NOT NULL,

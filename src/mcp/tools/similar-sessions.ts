@@ -39,7 +39,8 @@ export function registerSimilarSessions(server: McpServer) {
         };
       }
 
-      const { getNetworkStats } = await import("../../db/queries.js");
+      const { getNetworkStats, logCategoryMiss } = await import("../../db/queries.js");
+      logCategoryMiss(category, undefined, "get_similar_session_outcomes").catch(() => {});
       const stats = await getNetworkStats();
       return {
         content: [{

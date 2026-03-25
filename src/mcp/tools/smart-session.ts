@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 import { LogSessionInput } from "../../types/index.js";
-import { insertSession, getCategoryRecommendations, getSimilarSessionOutcomes, getNetworkStats } from "../../db/queries.js";
+import { insertSession, getCategoryRecommendations, getSimilarSessionOutcomes, getNetworkStats, logCategoryMiss } from "../../db/queries.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerSmartSession(server: McpServer) {
@@ -61,8 +61,11 @@ export function registerSmartSession(server: McpServer) {
       }
     }
 
-    // If no category data, show what's available
+    // If no category data, log the miss and show what's available
     if (Object.keys(intel).length === 0) {
+      if (category) {
+        logCategoryMiss(category, agent_platform, raw_query).catch(() => {});
+      }
       const stats = await getNetworkStats();
       intel.network_overview = {
         total_sessions: stats.total_sessions,

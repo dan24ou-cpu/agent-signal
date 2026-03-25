@@ -1391,3 +1391,33 @@ export async function getNetworkStats() {
     })),
   };
 }
+
+// ── Category miss tracking ──
+
+export async function logCategoryMiss(category: string, agentPlatform?: string, queryContext?: string) {
+  await pool.query(
+    `INSERT INTO category_misses (category, agent_platform, query_context)
+     VALUES ($1, $2, $3)`,
+    [category, agentPlatform ?? null, queryContext ?? null]
+  );
+}
+
+export async function getTopCategoryMisses(limit = 10) {
+  const result = await pool.query(
+    `SELECT category, COUNT(*) AS miss_count,
+            COUNT(DISTINCT agent_platform) AS unique_agents,
+            MAX(created_at) AS last_missed
+     FROM category_misses
+     WHERE created_at > NOW() - INTERVAL '30 days'
+     GROUP BY category
+     ORDER BY miss_count DESC
+     LIMIT $1`,
+    [limit]
+  );
+  return result.rows.map((r) => ({
+    category: r.category,
+    miss_count: Number(r.miss_count),
+    unique_agents: Number(r.unique_agents),
+    last_missed: r.last_missed,
+  }));
+}

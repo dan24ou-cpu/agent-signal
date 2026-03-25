@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getCategoryDemand, getNetworkStats } from "../../db/queries.js";
+import { getCategoryDemand, getNetworkStats, logCategoryMiss } from "../../db/queries.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerCategoryDemand(server: McpServer) {
@@ -17,6 +17,7 @@ export function registerCategoryDemand(server: McpServer) {
     const result = await getCategoryDemand(category);
 
     if (result.total_sessions === 0) {
+      logCategoryMiss(category, undefined, "get_category_demand").catch(() => {});
       const stats = await getNetworkStats();
       return {
         content: [{
