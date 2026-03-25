@@ -10,6 +10,10 @@ import type {
   OutcomeRow,
 } from "../types/index.js";
 
+// Category matching: "electronics" matches "electronics" AND "electronics/headphones", etc.
+const CAT_MATCH = `(s.category = $1 OR s.category LIKE $1 || '/%')`;
+const CAT_MATCH_BARE = `(category = $1 OR category LIKE $1 || '/%')`;
+
 // ── Inserts ──
 
 export async function insertSession(
@@ -217,14 +221,14 @@ export async function getCategoryAggregates(category: string) {
         `SELECT COUNT(*) AS total,
                 AVG(budget_max) AS avg_budget
          FROM shopping_sessions
-         WHERE category = $1`,
+         WHERE ${CAT_MATCH_BARE}`,
         [category]
       ),
       pool.query(
         `SELECT s.session_id, COUNT(e.id) AS eval_count
          FROM shopping_sessions s
          LEFT JOIN product_evaluations e ON e.session_id = s.session_id
-         WHERE s.category = $1
+         WHERE ${CAT_MATCH}
          GROUP BY s.session_id`,
         [category]
       ),
@@ -232,7 +236,7 @@ export async function getCategoryAggregates(category: string) {
         `SELECT s.session_id, COUNT(c.id) AS comp_count
          FROM shopping_sessions s
          LEFT JOIN comparisons c ON c.session_id = s.session_id
-         WHERE s.category = $1
+         WHERE ${CAT_MATCH}
          GROUP BY s.session_id`,
         [category]
       ),
@@ -240,7 +244,7 @@ export async function getCategoryAggregates(category: string) {
         `SELECT c.deciding_factor AS factor, COUNT(*) AS count
          FROM comparisons c
          JOIN shopping_sessions s ON s.session_id = c.session_id
-         WHERE s.category = $1
+         WHERE ${CAT_MATCH}
          GROUP BY c.deciding_factor
          ORDER BY count DESC
          LIMIT 10`,
@@ -250,7 +254,7 @@ export async function getCategoryAggregates(category: string) {
         `SELECT value, COUNT(*) AS count
          FROM shopping_sessions,
               jsonb_array_elements_text(constraints) AS value
-         WHERE category = $1
+         WHERE ${CAT_MATCH_BARE}
          GROUP BY value
          ORDER BY count DESC
          LIMIT 10`,
@@ -412,7 +416,7 @@ export async function getCategoryRecommendations(category: string, budgetMax?: n
                 ROUND(AVG(e.price_at_time), 2) AS avg_price
          FROM product_evaluations e
          JOIN shopping_sessions s ON s.session_id = e.session_id
-         WHERE s.category = $1 ${budgetFilter}
+         WHERE ${CAT_MATCH} ${budgetFilter}
          GROUP BY e.product_id
          HAVING COUNT(*) FILTER (WHERE e.disposition = 'selected') > 0
          ORDER BY selections DESC, avg_score DESC
@@ -423,7 +427,7 @@ export async function getCategoryRecommendations(category: string, budgetMax?: n
         `SELECT c.deciding_factor, COUNT(*) AS count
          FROM comparisons c
          JOIN shopping_sessions s ON s.session_id = c.session_id
-         WHERE s.category = $1
+         WHERE ${CAT_MATCH}
          GROUP BY c.deciding_factor
          ORDER BY count DESC
          LIMIT 5`,
@@ -433,7 +437,7 @@ export async function getCategoryRecommendations(category: string, budgetMax?: n
         `SELECT value, COUNT(*) AS count
          FROM shopping_sessions,
               jsonb_array_elements_text(constraints) AS value
-         WHERE category = $1
+         WHERE ${CAT_MATCH_BARE}
          GROUP BY value
          ORDER BY count DESC
          LIMIT 5`,
@@ -443,7 +447,7 @@ export async function getCategoryRecommendations(category: string, budgetMax?: n
         `SELECT COUNT(DISTINCT s.session_id) AS total_sessions,
                 ROUND(AVG(s.budget_max), 2) AS avg_budget
          FROM shopping_sessions s
-         WHERE s.category = $1`,
+         WHERE ${CAT_MATCH}`,
         [category]
       ),
     ]);
@@ -564,7 +568,7 @@ export async function getSimilarSessionOutcomes(
               COUNT(DISTINCT o.session_id) FILTER (WHERE o.outcome_type = 'abandoned') AS abandoned
        FROM shopping_sessions s
        LEFT JOIN outcomes o ON o.session_id = s.session_id
-       WHERE s.category = $1 ${constraintFilter} ${budgetFilter}`,
+       WHERE ${CAT_MATCH} ${constraintFilter} ${budgetFilter}`,
       params
     ),
     // What products did similar sessions select?
@@ -576,7 +580,7 @@ export async function getSimilarSessionOutcomes(
               MODE() WITHIN GROUP (ORDER BY e.merchant_id) AS common_merchant
        FROM product_evaluations e
        JOIN shopping_sessions s ON s.session_id = e.session_id
-       WHERE s.category = $1 ${constraintFilter} ${budgetFilter}
+       WHERE ${CAT_MATCH} ${constraintFilter} ${budgetFilter}
          AND e.disposition = 'selected'
        GROUP BY e.product_id
        ORDER BY times_selected DESC
@@ -588,7 +592,7 @@ export async function getSimilarSessionOutcomes(
       `SELECT c.deciding_factor, COUNT(*) AS count
        FROM comparisons c
        JOIN shopping_sessions s ON s.session_id = c.session_id
-       WHERE s.category = $1 ${constraintFilter} ${budgetFilter}
+       WHERE ${CAT_MATCH} ${constraintFilter} ${budgetFilter}
        GROUP BY c.deciding_factor
        ORDER BY count DESC
        LIMIT 5`,
@@ -842,7 +846,7 @@ export async function getConstraintMatch(
        FROM shopping_sessions s
        JOIN outcomes o ON o.session_id = s.session_id
        LEFT JOIN product_evaluations e ON e.session_id = s.session_id AND e.disposition = 'selected'
-       WHERE s.category = $1
+       WHERE ${CAT_MATCH}
          AND s.constraints @> $2::jsonb
          ${budgetFilter}
        ORDER BY s.created_at DESC
@@ -859,7 +863,7 @@ export async function getConstraintMatch(
               array_agg(DISTINCT e.merchant_id) FILTER (WHERE e.disposition = 'selected') AS merchants
        FROM product_evaluations e
        JOIN shopping_sessions s ON s.session_id = e.session_id
-       WHERE s.category = $1
+       WHERE ${CAT_MATCH}
          AND s.constraints ?| $2::text[]
          ${budgetFilter}
        GROUP BY e.product_id
@@ -1149,7 +1153,7 @@ export async function getCategoryDemand(category: string) {
         `SELECT value AS constraint, COUNT(*) AS demand_count
          FROM shopping_sessions,
               jsonb_array_elements_text(constraints) AS value
-         WHERE category = $1
+         WHERE ${CAT_MATCH_BARE}
          GROUP BY value
          ORDER BY demand_count DESC
          LIMIT 15`,
@@ -1161,7 +1165,7 @@ export async function getCategoryDemand(category: string) {
          FROM shopping_sessions s
          JOIN outcomes o ON o.session_id = s.session_id
          CROSS JOIN jsonb_array_elements_text(s.constraints) AS value
-         WHERE s.category = $1 AND o.outcome_type = 'abandoned'
+         WHERE ${CAT_MATCH} AND o.outcome_type = 'abandoned'
          GROUP BY value
          ORDER BY unmet_count DESC
          LIMIT 10`,
@@ -1178,7 +1182,7 @@ export async function getCategoryDemand(category: string) {
            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY budget_max) AS median,
            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY budget_max) AS p75
          FROM shopping_sessions
-         WHERE category = $1 AND budget_max IS NOT NULL`,
+         WHERE ${CAT_MATCH_BARE} AND budget_max IS NOT NULL`,
         [category]
       ),
       // Outcome distribution
@@ -1187,7 +1191,7 @@ export async function getCategoryDemand(category: string) {
                 ROUND(COUNT(*)::numeric / NULLIF(SUM(COUNT(*)) OVER (), 0) * 100, 1) AS pct
          FROM outcomes o
          JOIN shopping_sessions s ON s.session_id = o.session_id
-         WHERE s.category = $1
+         WHERE ${CAT_MATCH}
          GROUP BY o.outcome_type
          ORDER BY count DESC`,
         [category]
@@ -1201,7 +1205,7 @@ export async function getCategoryDemand(category: string) {
                 ROUND(AVG(e.match_score), 2) AS avg_score
          FROM product_evaluations e
          JOIN shopping_sessions s ON s.session_id = e.session_id
-         WHERE s.category = $1
+         WHERE ${CAT_MATCH}
          GROUP BY e.product_id
          ORDER BY times_considered DESC
          LIMIT 10`,
