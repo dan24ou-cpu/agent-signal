@@ -29,7 +29,13 @@
     "claude-desktop",
     "llm-tools",
     "agent-tools",
-    "product-recommendations"
+    "product-recommendations",
+    "shopping",
+    "price-comparison",
+    "seller-intelligence",
+    "merchant-analytics",
+    "trending-products",
+    "price-alerts"
   ],
   "repository": {
     "type": "git",

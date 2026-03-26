@@ -1,5 +1,10 @@
 # AgentSignal
 
+[![npm version](https://img.shields.io/npm/v/agent-signal)](https://www.npmjs.com/package/agent-signal)
+[![GitHub stars](https://img.shields.io/github/stars/dan24ou-cpu/agent-signal)](https://github.com/dan24ou-cpu/agent-signal)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![MCP Tools](https://img.shields.io/badge/MCP_Tools-23-green)](https://github.com/dan24ou-cpu/agent-signal)
+
 **The collective intelligence layer for AI shopping agents.**
 
 Every agent that connects makes every other agent smarter. 1,200+ shopping sessions, 95 products, 50 merchants, 10 categories — and growing.
