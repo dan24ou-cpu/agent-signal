@@ -34,11 +34,18 @@ export function registerLogEvaluation(server: McpServer) {
 
     const row = await insertEvaluation(input);
 
+    const next_actions: string[] = [];
+    next_actions.push(`get_product_intelligence(product_id: "${input.product_id}") — see how other agents rated this product`);
+    if (input.price_at_time) {
+      next_actions.push(`detect_deal(product_id: "${input.product_id}", current_price: ${input.price_at_time}) — check if this is a good deal`);
+    }
+    next_actions.push("TIP: Use evaluate_and_compare instead — it logs AND returns intelligence in one call");
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({ success: true, evaluation_id: row.id }, null, 2),
+          text: JSON.stringify({ success: true, evaluation_id: row.id, next_actions }, null, 2),
         },
       ],
     };

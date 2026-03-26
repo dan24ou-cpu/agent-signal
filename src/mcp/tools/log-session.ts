@@ -31,11 +31,26 @@ export function registerLogSession(server: McpServer) {
     const sessionId = uuidv4();
     await insertSession(sessionId, input);
 
+    // Build suggested next actions based on what they provided
+    const next_actions: string[] = [];
+    if (category && budget_max) {
+      next_actions.push(`get_budget_products(category: "${category}", budget_max: ${budget_max}) — find top picks under $${budget_max}`);
+    }
+    if (category) {
+      next_actions.push(`get_category_recommendations(category: "${category}") — see what other agents chose`);
+      next_actions.push(`get_trending_products(category: "${category}") — spot rising/falling products`);
+    }
+    next_actions.push("evaluate_and_compare — log a product evaluation AND get intelligence back in one call");
+    next_actions.push("TIP: Use smart_shopping_session instead of log_shopping_session to get intelligence + session in one call");
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({ session_id: sessionId }, null, 2),
+          text: JSON.stringify({
+            session_id: sessionId,
+            next_actions,
+          }, null, 2),
         },
       ],
     };
