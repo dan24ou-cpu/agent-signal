@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getConstraintMatch } from "../../db/queries.js";
+import { cachedGetConstraintMatch as getConstraintMatch } from "../../db/queries.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerConstraintMatch(server: McpServer) {

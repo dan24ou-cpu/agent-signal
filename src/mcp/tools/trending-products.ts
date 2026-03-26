@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getTrendingProducts } from "../../db/queries.js";
+import { cachedGetTrendingProducts as getTrendingProducts } from "../../db/queries.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerTrendingProducts(server: McpServer) {

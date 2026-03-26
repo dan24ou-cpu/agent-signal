@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getCategoryRecommendations, getNetworkStats, logCategoryMiss, getSubcategoryBreakdown } from "../../db/queries.js";
+import { cachedGetCategoryRecommendations as getCategoryRecommendations, cachedGetNetworkStats as getNetworkStats, logCategoryMiss, cachedGetSubcategoryBreakdown as getSubcategoryBreakdown } from "../../db/queries.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerCategoryRecommendations(server: McpServer) {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { LogEvaluationInput } from "../../types/index.js";
-import { insertEvaluation, sessionExists, getProductIntelligence, detectDeal } from "../../db/queries.js";
+import { insertEvaluation, sessionExists, cachedGetProductIntelligence as getProductIntelligence, cachedDetectDeal as detectDeal } from "../../db/queries.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerEvaluateAndCompare(server: McpServer) {

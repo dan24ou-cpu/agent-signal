@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getCategoryDemand, getNetworkStats, logCategoryMiss } from "../../db/queries.js";
+import { cachedGetCategoryDemand as getCategoryDemand, cachedGetNetworkStats as getNetworkStats, logCategoryMiss } from "../../db/queries.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerCategoryDemand(server: McpServer) {

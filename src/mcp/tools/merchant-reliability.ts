@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getMerchantReliability } from "../../db/queries.js";
+import { cachedGetMerchantReliability as getMerchantReliability } from "../../db/queries.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerMerchantReliability(server: McpServer) {

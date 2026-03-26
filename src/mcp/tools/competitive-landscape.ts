@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getCompetitiveLandscape, getNetworkStats } from "../../db/queries.js";
+import { cachedGetCompetitiveLandscape as getCompetitiveLandscape, cachedGetNetworkStats as getNetworkStats } from "../../db/queries.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerCompetitiveLandscape(server: McpServer) {

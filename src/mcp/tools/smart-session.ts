@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 import { LogSessionInput } from "../../types/index.js";
-import { insertSession, getCategoryRecommendations, getSimilarSessionOutcomes, getNetworkStats, logCategoryMiss } from "../../db/queries.js";
+import { insertSession, cachedGetCategoryRecommendations as getCategoryRecommendations, cachedGetSimilarSessionOutcomes as getSimilarSessionOutcomes, cachedGetNetworkStats as getNetworkStats, logCategoryMiss } from "../../db/queries.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerSmartSession(server: McpServer) {

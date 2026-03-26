@@ -1,4 +1,5 @@
 import express from "express";
+import rateLimit from "express-rate-limit";
 import { randomUUID } from "crypto";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
@@ -23,6 +24,32 @@ const port = Number(process.env.PORT) || Number(process.env.API_PORT) || 3100;
 
 app.use(express.json());
 
+// Trust proxy (Railway runs behind a reverse proxy)
+app.set("trust proxy", 1);
+
+// ── Rate Limiting ──
+
+// General API limiter: 100 requests per minute per IP
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please slow down." },
+});
+
+// MCP limiter: 200 requests per minute per IP (agents make multiple calls per session)
+const mcpLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many MCP requests. Please slow down." },
+});
+
+app.use("/api", apiLimiter);
+app.use("/mcp", mcpLimiter);
+
 // ── REST API Routes ──
 
 app.use("/api/products", productsRouter);
@@ -46,20 +73,40 @@ app.get("/api/health", (_req, res) => {
 
 // ── Remote MCP Server (Streamable HTTP) ──
 
-// Map of session ID -> transport for stateful sessions
-const transports = new Map<string, StreamableHTTPServerTransport>();
+// Map of session ID -> transport + last activity timestamp
+const transports = new Map<string, { transport: StreamableHTTPServerTransport; lastActivity: number }>();
+
+// Session TTL: clean up idle sessions every 60s, expire after 30 min
+const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const MAX_SESSIONS = 500; // hard cap
+
+setInterval(() => {
+  const now = Date.now();
+  let cleaned = 0;
+  for (const [sid, entry] of transports) {
+    if (now - entry.lastActivity > SESSION_TTL_MS) {
+      entry.transport.close?.();
+      transports.delete(sid);
+      cleaned++;
+    }
+  }
+  if (cleaned > 0) {
+    console.log(`Session cleanup: removed ${cleaned} idle sessions, ${transports.size} active`);
+  }
+}, 60_000);
 
 async function handleMcp(req: express.Request, res: express.Response) {
   const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
   if (req.method === "GET" || req.method === "DELETE") {
     // GET = SSE stream, DELETE = close session
-    const transport = sessionId ? transports.get(sessionId) : undefined;
-    if (!transport) {
+    const entry = sessionId ? transports.get(sessionId) : undefined;
+    if (!entry) {
       res.status(400).json({ error: "No active session. Send an initialize request first." });
       return;
     }
-    await transport.handleRequest(req, res);
+    entry.lastActivity = Date.now();
+    await entry.transport.handleRequest(req, res);
     if (req.method === "DELETE") {
       transports.delete(sessionId!);
     }
@@ -69,7 +116,9 @@ async function handleMcp(req: express.Request, res: express.Response) {
   // POST requests
   if (sessionId && transports.has(sessionId)) {
     // Existing session
-    await transports.get(sessionId)!.handleRequest(req, res, req.body);
+    const entry = transports.get(sessionId)!;
+    entry.lastActivity = Date.now();
+    await entry.transport.handleRequest(req, res, req.body);
     return;
   }
 
@@ -87,9 +136,26 @@ async function handleMcp(req: express.Request, res: express.Response) {
     });
 
     transport.onclose = () => {
-      const sid = [...transports.entries()].find(([, t]) => t === transport)?.[0];
+      const sid = [...transports.entries()].find(([, entry]) => entry.transport === transport)?.[0];
       if (sid) transports.delete(sid);
     };
+
+    // Enforce max sessions
+    if (transports.size >= MAX_SESSIONS) {
+      // Evict oldest session
+      let oldestSid: string | undefined;
+      let oldestTime = Infinity;
+      for (const [sid, entry] of transports) {
+        if (entry.lastActivity < oldestTime) {
+          oldestTime = entry.lastActivity;
+          oldestSid = sid;
+        }
+      }
+      if (oldestSid) {
+        transports.get(oldestSid)?.transport.close?.();
+        transports.delete(oldestSid);
+      }
+    }
 
     await mcpServer.connect(transport);
     await transport.handleRequest(req, res, body);
@@ -97,7 +163,7 @@ async function handleMcp(req: express.Request, res: express.Response) {
     // Extract session ID from response headers
     const newSessionId = res.getHeader("mcp-session-id") as string;
     if (newSessionId) {
-      transports.set(newSessionId, transport);
+      transports.set(newSessionId, { transport, lastActivity: Date.now() });
     }
   } else {
     res.status(400).json({ error: "No session. Send an initialize request first." });

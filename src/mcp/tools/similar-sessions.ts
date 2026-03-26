@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getSimilarSessionOutcomes } from "../../db/queries.js";
+import { cachedGetSimilarSessionOutcomes as getSimilarSessionOutcomes } from "../../db/queries.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerSimilarSessions(server: McpServer) {

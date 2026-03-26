@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { detectDeal, getNetworkStats } from "../../db/queries.js";
+import { cachedDetectDeal as detectDeal, cachedGetNetworkStats as getNetworkStats } from "../../db/queries.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerDealDetector(server: McpServer) {

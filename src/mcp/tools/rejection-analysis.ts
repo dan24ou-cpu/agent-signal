@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getRejectionAnalysis, getNetworkStats } from "../../db/queries.js";
+import { cachedGetRejectionAnalysis as getRejectionAnalysis, cachedGetNetworkStats as getNetworkStats } from "../../db/queries.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerRejectionAnalysis(server: McpServer) {

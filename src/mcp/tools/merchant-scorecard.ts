@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getMerchantScorecard, getNetworkStats } from "../../db/queries.js";
+import { cachedGetMerchantScorecard as getMerchantScorecard, cachedGetNetworkStats as getNetworkStats } from "../../db/queries.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerMerchantScorecard(server: McpServer) {

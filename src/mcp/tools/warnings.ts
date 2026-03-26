@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getRecentWarnings } from "../../db/queries.js";
+import { cachedGetRecentWarnings as getRecentWarnings } from "../../db/queries.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerWarnings(server: McpServer) {

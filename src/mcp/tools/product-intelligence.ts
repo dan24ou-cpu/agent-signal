@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getProductIntelligence, getNetworkStats } from "../../db/queries.js";
+import { cachedGetProductIntelligence as getProductIntelligence, cachedGetNetworkStats as getNetworkStats } from "../../db/queries.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerProductIntelligence(server: McpServer) {

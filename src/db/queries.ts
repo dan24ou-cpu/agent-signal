@@ -1,4 +1,5 @@
 import pool from "./client.js";
+import { cached } from "./cache.js";
 import type {
   LogSessionInput,
   LogEvaluationInput,
@@ -1617,3 +1618,25 @@ export async function getTopCategoryMisses(limit = 10) {
     last_missed: r.last_missed,
   }));
 }
+
+// ── Cached read functions (2-min TTL) ──
+// Write functions are NOT cached — they always hit the DB.
+// Read functions that aggregate data are cached to avoid redundant queries.
+
+const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+
+export const cachedGetProductIntelligence = cached("prodIntel", getProductIntelligence, CACHE_TTL);
+export const cachedGetCategoryRecommendations = cached("catRecs", getCategoryRecommendations, CACHE_TTL);
+export const cachedGetMerchantReliability = cached("merchRel", getMerchantReliability, CACHE_TTL);
+export const cachedGetSimilarSessionOutcomes = cached("simSess", getSimilarSessionOutcomes, CACHE_TTL);
+export const cachedDetectDeal = cached("deal", detectDeal, CACHE_TTL);
+export const cachedGetRecentWarnings = cached("warn", getRecentWarnings, CACHE_TTL);
+export const cachedGetConstraintMatch = cached("conMatch", getConstraintMatch, CACHE_TTL);
+export const cachedGetNetworkStats = cached("netStats", getNetworkStats, CACHE_TTL);
+export const cachedGetCompetitiveLandscape = cached("compLand", getCompetitiveLandscape, CACHE_TTL);
+export const cachedGetRejectionAnalysis = cached("rejAnal", getRejectionAnalysis, CACHE_TTL);
+export const cachedGetCategoryDemand = cached("catDemand", getCategoryDemand, CACHE_TTL);
+export const cachedGetMerchantScorecard = cached("merchScore", getMerchantScorecard, CACHE_TTL);
+export const cachedGetTrendingProducts = cached("trending", getTrendingProducts, CACHE_TTL);
+export const cachedGetBudgetProducts = cached("budget", getBudgetProducts, CACHE_TTL);
+export const cachedGetSubcategoryBreakdown = cached("subcat", getSubcategoryBreakdown, CACHE_TTL);

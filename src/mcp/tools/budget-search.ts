@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getBudgetProducts, getNetworkStats } from "../../db/queries.js";
+import { cachedGetBudgetProducts as getBudgetProducts, cachedGetNetworkStats as getNetworkStats } from "../../db/queries.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerBudgetSearch(server: McpServer) {
