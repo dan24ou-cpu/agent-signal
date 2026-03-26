@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getCategoryRecommendations, getNetworkStats, logCategoryMiss } from "../../db/queries.js";
+import { getCategoryRecommendations, getNetworkStats, logCategoryMiss, getSubcategoryBreakdown } from "../../db/queries.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerCategoryRecommendations(server: McpServer) {
@@ -33,10 +33,17 @@ export function registerCategoryRecommendations(server: McpServer) {
       };
     }
 
+    // Add subcategory breakdown for parent categories
+    const subcats = await getSubcategoryBreakdown(category);
+    const response: Record<string, unknown> = { ...recs };
+    if (subcats.length > 0) {
+      response.subcategories = subcats;
+    }
+
     return {
       content: [{
         type: "text" as const,
-        text: JSON.stringify(recs, null, 2),
+        text: JSON.stringify(response, null, 2),
       }],
     };
   });

@@ -19,6 +19,9 @@ import { registerCompetitiveLandscape } from "./tools/competitive-landscape.js";
 import { registerRejectionAnalysis } from "./tools/rejection-analysis.js";
 import { registerCategoryDemand } from "./tools/category-demand.js";
 import { registerMerchantScorecard } from "./tools/merchant-scorecard.js";
+import { registerTrendingProducts } from "./tools/trending-products.js";
+import { registerPriceAlerts } from "./tools/price-alerts.js";
+import { registerBudgetSearch } from "./tools/budget-search.js";
 
 export function registerAllTools(server: McpServer) {
   registerLogSession(server);
@@ -41,4 +44,8 @@ export function registerAllTools(server: McpServer) {
   registerRejectionAnalysis(server);
   registerCategoryDemand(server);
   registerMerchantScorecard(server);
+  // Discovery & monitoring
+  registerTrendingProducts(server);
+  registerPriceAlerts(server);
+  registerBudgetSearch(server);
 }

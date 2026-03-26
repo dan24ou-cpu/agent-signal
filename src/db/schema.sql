@@ -84,6 +84,19 @@ CREATE TABLE category_misses (
 CREATE INDEX idx_category_misses_category ON category_misses(category);
 CREATE INDEX idx_category_misses_created ON category_misses(created_at);
 
+-- Price Alerts
+CREATE TABLE price_alerts (
+  id SERIAL PRIMARY KEY,
+  product_id VARCHAR(255) NOT NULL,
+  target_price NUMERIC(10, 2) NOT NULL,
+  agent_platform VARCHAR(100) DEFAULT 'unknown',
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_price_alerts_product ON price_alerts(product_id);
+CREATE INDEX idx_price_alerts_active ON price_alerts(active);
+
 -- Product Insights (pre-computed aggregates)
 CREATE TABLE product_insights (
   product_id VARCHAR(255) NOT NULL,

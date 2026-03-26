@@ -56,7 +56,7 @@ smart_shopping_session({
 - How similar sessions ended (purchased vs abandoned)
 - Network-wide stats
 
-## 19 MCP Tools
+## 23 MCP Tools
 
 ### Smart Combo Tools (recommended)
 
@@ -85,6 +85,15 @@ smart_shopping_session({
 | `get_rejection_analysis` | Why agents reject your product, weekly trends, what they chose instead |
 | `get_category_demand` | What agents are searching for, unmet needs, budget distribution, market gaps |
 | `get_merchant_scorecard` | Full merchant report — stock reliability, price competitiveness, selection rates by category |
+
+### Discovery & Monitoring
+
+| Tool | What it tells you |
+|------|-------------------|
+| `get_budget_products` | Best products within a specific budget — ranked by agent selections, with merchant availability |
+| `get_trending_products` | Products trending up or down — compares current vs previous period selection rates |
+| `create_price_alert` | Set a price alert — triggers when agents spot the product at or below your target |
+| `check_price_alerts` | Check which alerts have been triggered by recent agent activity |
 
 ### Write Tools — Contribute Back
 
@@ -194,7 +203,7 @@ npm run dev            # starts API + MCP server on port 3100
 - **MCP Server** — Stdio transport (local) + Streamable HTTP (remote)
 - **REST API** — Express on the same port
 - **Database** — PostgreSQL (Neon-compatible)
-- **19 MCP tools** — 13 read (buyer + seller intelligence) + 6 write
+- **23 MCP tools** — 17 read (buyer + seller + discovery) + 6 write
 
 ## License
 

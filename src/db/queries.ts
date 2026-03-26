@@ -1402,6 +1402,202 @@ export async function logCategoryMiss(category: string, agentPlatform?: string, 
   );
 }
 
+// ── Subcategory breakdown ──
+
+export async function getSubcategoryBreakdown(category: string) {
+  const result = await pool.query(
+    `SELECT s.category AS subcategory,
+            COUNT(DISTINCT s.session_id) AS sessions,
+            COUNT(DISTINCT e.product_id) AS products,
+            ROUND(AVG(s.budget_max), 2) AS avg_budget
+     FROM shopping_sessions s
+     LEFT JOIN product_evaluations e ON e.session_id = s.session_id
+     WHERE s.category LIKE $1 || '/%'
+     GROUP BY s.category
+     ORDER BY sessions DESC`,
+    [category]
+  );
+  return result.rows.map((r) => ({
+    subcategory: r.subcategory,
+    sessions: Number(r.sessions),
+    products: Number(r.products),
+    avg_budget: r.avg_budget ? Number(r.avg_budget) : null,
+  }));
+}
+
+// ── Trending products ──
+
+export async function getTrendingProducts(category?: string, days = 7) {
+  const catFilter = category
+    ? `AND ${CAT_MATCH}`
+    : "";
+  const params: (string | number)[] = [days];
+  if (category) params.push(category);
+  const catParam = category ? `$2` : "";
+
+  // Current period vs previous period
+  const [current, previous] = await Promise.all([
+    pool.query(
+      `SELECT e.product_id,
+              COUNT(*) FILTER (WHERE e.disposition = 'selected') AS selections,
+              COUNT(*) AS considerations,
+              ROUND(AVG(e.match_score), 2) AS avg_score,
+              ROUND(AVG(e.price_at_time), 2) AS avg_price
+       FROM product_evaluations e
+       JOIN shopping_sessions s ON s.session_id = e.session_id
+       WHERE e.created_at > NOW() - MAKE_INTERVAL(days => $1::int)
+         ${category ? `AND (s.category = $2 OR s.category LIKE $2 || '/%')` : ""}
+       GROUP BY e.product_id
+       ORDER BY selections DESC
+       LIMIT 15`,
+      params
+    ),
+    pool.query(
+      `SELECT e.product_id,
+              COUNT(*) FILTER (WHERE e.disposition = 'selected') AS selections,
+              COUNT(*) AS considerations
+       FROM product_evaluations e
+       JOIN shopping_sessions s ON s.session_id = e.session_id
+       WHERE e.created_at BETWEEN NOW() - MAKE_INTERVAL(days => ($1::int * 2))
+                               AND NOW() - MAKE_INTERVAL(days => $1::int)
+         ${category ? `AND (s.category = $2 OR s.category LIKE $2 || '/%')` : ""}
+       GROUP BY e.product_id`,
+      params
+    ),
+  ]);
+
+  const prevMap = new Map(previous.rows.map((r) => [r.product_id, Number(r.selections)]));
+
+  return current.rows.map((r) => {
+    const prevSelections = prevMap.get(r.product_id) || 0;
+    const currSelections = Number(r.selections);
+    const trend = prevSelections > 0
+      ? Math.round(((currSelections - prevSelections) / prevSelections) * 100)
+      : currSelections > 0 ? 100 : 0; // new entry = 100% growth
+
+    return {
+      product_id: r.product_id,
+      selections_this_period: currSelections,
+      selections_last_period: prevSelections,
+      trend_pct: trend,
+      considerations: Number(r.considerations),
+      avg_match_score: r.avg_score ? Number(r.avg_score) : null,
+      avg_price: r.avg_price ? Number(r.avg_price) : null,
+    };
+  });
+}
+
+// ── Price alerts (store and check) ──
+
+export async function createPriceAlert(productId: string, targetPrice: number, agentPlatform?: string) {
+  const result = await pool.query(
+    `INSERT INTO price_alerts (product_id, target_price, agent_platform)
+     VALUES ($1, $2, $3)
+     RETURNING *`,
+    [productId, targetPrice, agentPlatform ?? "unknown"]
+  );
+  return result.rows[0];
+}
+
+export async function checkPriceAlerts(productId?: string) {
+  // Get all active alerts, optionally filtered by product
+  const filter = productId ? `AND pa.product_id = $1` : "";
+  const params = productId ? [productId] : [];
+
+  const result = await pool.query(
+    `SELECT pa.id, pa.product_id, pa.target_price, pa.agent_platform, pa.created_at,
+            MIN(e.price_at_time) AS current_lowest_price,
+            MIN(e.merchant_id) FILTER (WHERE e.price_at_time = sub.min_price) AS cheapest_merchant
+     FROM price_alerts pa
+     LEFT JOIN LATERAL (
+       SELECT MIN(price_at_time) AS min_price
+       FROM product_evaluations
+       WHERE product_id = pa.product_id
+         AND price_at_time IS NOT NULL
+         AND created_at > NOW() - INTERVAL '7 days'
+     ) sub ON true
+     LEFT JOIN product_evaluations e ON e.product_id = pa.product_id
+       AND e.price_at_time = sub.min_price
+       AND e.created_at > NOW() - INTERVAL '7 days'
+     WHERE pa.active = true ${filter}
+     GROUP BY pa.id, pa.product_id, pa.target_price, pa.agent_platform, pa.created_at, sub.min_price`,
+    params
+  );
+
+  return result.rows.map((r) => ({
+    alert_id: r.id,
+    product_id: r.product_id,
+    target_price: Number(r.target_price),
+    current_lowest_price: r.current_lowest_price ? Number(r.current_lowest_price) : null,
+    triggered: r.current_lowest_price ? Number(r.current_lowest_price) <= Number(r.target_price) : false,
+    cheapest_merchant: r.cheapest_merchant,
+    agent_platform: r.agent_platform,
+    created_at: r.created_at,
+  }));
+}
+
+export async function deactivatePriceAlert(alertId: number) {
+  await pool.query(`UPDATE price_alerts SET active = false WHERE id = $1`, [alertId]);
+}
+
+// ── Budget-aware product search ──
+
+export async function getBudgetProducts(category: string, budgetMax: number) {
+  const [products, budgetStats] = await Promise.all([
+    pool.query(
+      `SELECT e.product_id,
+              COUNT(*) FILTER (WHERE e.disposition = 'selected') AS selections,
+              COUNT(*) AS considerations,
+              ROUND(AVG(e.match_score), 2) AS avg_score,
+              ROUND(MIN(e.price_at_time), 2) AS lowest_price,
+              ROUND(AVG(e.price_at_time), 2) AS avg_price,
+              ROUND(MAX(e.price_at_time), 2) AS highest_price,
+              ARRAY_AGG(DISTINCT e.merchant_id) FILTER (WHERE e.price_at_time <= $2 AND e.merchant_id IS NOT NULL) AS merchants_under_budget
+       FROM product_evaluations e
+       JOIN shopping_sessions s ON s.session_id = e.session_id
+       WHERE (s.category = $1 OR s.category LIKE $1 || '/%')
+         AND e.price_at_time IS NOT NULL
+         AND e.price_at_time <= $2
+       GROUP BY e.product_id
+       HAVING COUNT(*) FILTER (WHERE e.disposition = 'selected') > 0
+       ORDER BY selections DESC, avg_score DESC
+       LIMIT 15`,
+      [category, budgetMax]
+    ),
+    pool.query(
+      `SELECT
+         COUNT(DISTINCT e.product_id) AS total_products_in_budget,
+         COUNT(DISTINCT e.product_id) FILTER (WHERE e.disposition = 'selected') AS selectable_products,
+         ROUND(AVG(e.price_at_time), 2) AS avg_price_in_range,
+         COUNT(DISTINCT s.session_id) AS sessions_in_range
+       FROM product_evaluations e
+       JOIN shopping_sessions s ON s.session_id = e.session_id
+       WHERE (s.category = $1 OR s.category LIKE $1 || '/%')
+         AND e.price_at_time IS NOT NULL
+         AND e.price_at_time <= $2`,
+      [category, budgetMax]
+    ),
+  ]);
+
+  const stats = budgetStats.rows[0];
+  return {
+    category,
+    budget_max: budgetMax,
+    products_in_budget: Number(stats?.total_products_in_budget ?? 0),
+    sessions_in_range: Number(stats?.sessions_in_range ?? 0),
+    avg_price_in_range: stats?.avg_price_in_range ? Number(stats.avg_price_in_range) : null,
+    best_picks: products.rows.map((r) => ({
+      product_id: r.product_id,
+      times_selected: Number(r.selections),
+      times_considered: Number(r.considerations),
+      avg_match_score: r.avg_score ? Number(r.avg_score) : null,
+      lowest_price: Number(r.lowest_price),
+      avg_price: Number(r.avg_price),
+      merchants_under_budget: r.merchants_under_budget?.filter(Boolean) ?? [],
+    })),
+  };
+}
+
 export async function getTopCategoryMisses(limit = 10) {
   const result = await pool.query(
     `SELECT category, COUNT(*) AS miss_count,
