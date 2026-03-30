@@ -7,7 +7,7 @@ export function registerBudgetSearch(server: McpServer) {
     title: "Get Budget Products",
     description:
       "Find the best products within a specific budget for a category. " +
-      "Returns products that have been selected by other agents at or below your price point, " +
+      "Call this when the user says 'under $X' or has a clear budget constraint. " +
       "ranked by selection count. Includes which merchants offer it under budget.",
     inputSchema: {
       category: z.string().describe("Product category, e.g. 'electronics', 'footwear/running'"),

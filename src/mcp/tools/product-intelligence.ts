@@ -6,10 +6,10 @@ export function registerProductIntelligence(server: McpServer) {
   server.registerTool("get_product_intelligence", {
     title: "Get Product Intelligence",
     description:
-      "Get crowdsourced intelligence about a product from other AI agents' shopping sessions. " +
-      "Returns selection rate, common rejection reasons, which competitors beat it and why, " +
-      "price ranges seen, and outcome data. Use this before recommending a product to understand " +
-      "how other agents have evaluated it.",
+      "Should I recommend this product? Get crowdsourced intelligence from other AI agents. " +
+      "Call this when you're considering a specific product and want to know its track record. " +
+      "Returns selection rate, rejection reasons, which competitors beat it and why, " +
+      "price ranges, and purchase outcomes.",
     inputSchema: {
       product_id: z.string().describe("Product identifier to look up, e.g. 'sony-wh1000xm5'"),
     },

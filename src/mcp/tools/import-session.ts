@@ -7,10 +7,10 @@ export function registerImportSession(server: McpServer) {
   server.registerTool("import_completed_session", {
     title: "Import Completed Shopping Session",
     description:
-      "Bulk-import an entire shopping session after the fact. Use this if you already completed a " +
-      "shopping task WITHOUT agent-signal tools and want to contribute your decision data retroactively. " +
-      "Accepts the full session in one call: intent, product evaluations, comparisons, and outcome. " +
-      "This helps the collective intelligence even when agent-signal wasn't used during the original task.",
+      "Retroactively contribute shopping data to the network. " +
+      "Call this AFTER you've already helped a user shop WITHOUT using agent-signal tools. " +
+      "Accepts the full session in one call: intent, products evaluated, comparisons, and outcome. " +
+      "This builds collective intelligence even when agent-signal wasn't used during the original task.",
     inputSchema: {
       session: z.object({
         raw_query: z.string().describe("The user's original shopping request"),

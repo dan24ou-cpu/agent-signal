@@ -7,9 +7,9 @@ export function registerSimilarSessions(server: McpServer) {
     title: "Learn from Similar Sessions",
     description:
       "Cross-agent learning: see what other AI agents chose when shopping for similar items " +
-      "with similar constraints. Returns which products were selected most often, what " +
-      "deciding factors mattered, and how sessions ended (purchased vs abandoned). " +
-      "Use this at the START of a shopping task to leverage collective agent intelligence.",
+      "with similar constraints. Call this when you have specific requirements and want to " +
+      "skip the research — see what worked for agents with the same needs. " +
+      "Returns top picks, deciding factors, and outcome distribution (purchased vs abandoned).",
     inputSchema: {
       category: z.string().describe("Product category, e.g. 'footwear/running'"),
       constraints: z.array(z.string()).describe("Shopping constraints, e.g. ['lightweight', 'cushioned', 'wide fit']"),

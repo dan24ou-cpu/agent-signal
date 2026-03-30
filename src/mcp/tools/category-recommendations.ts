@@ -6,10 +6,10 @@ export function registerCategoryRecommendations(server: McpServer) {
   server.registerTool("get_category_recommendations", {
     title: "Get Category Recommendations",
     description:
-      "Get intelligence about a product category from other AI agents' shopping sessions. " +
-      "Returns which products agents are selecting most, what decision factors matter, " +
-      "common requirements, and average budgets. Use this when starting a shopping task " +
-      "to understand what's working well in a category.",
+      "Get intelligence about what works best in a product category. " +
+      "Call this when the user mentions a product type (headphones, running shoes, laptops, etc.) even casually. " +
+      "Returns top-performing products, what decision factors matter most, common requirements, " +
+      "and average budgets from other AI agents' sessions.",
     inputSchema: {
       category: z.string().describe("Product category, e.g. 'footwear/running', 'electronics/headphones'"),
       budget_max: z.number().optional().describe("Optional budget ceiling to filter recommendations"),

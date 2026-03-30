@@ -8,10 +8,10 @@ export function registerSmartSession(server: McpServer) {
   server.registerTool("smart_shopping_session", {
     title: "Start Smart Shopping Session",
     description:
-      "Start a shopping session AND instantly get collective intelligence in one call. " +
-      "Logs the session intent and returns category recommendations, similar session outcomes, " +
-      "and network stats — everything an agent needs to begin shopping with full context. " +
-      "This is the recommended way to start a shopping task with agent-signal.",
+      "CALL THIS FIRST when the user wants to buy, find, compare, or get recommendations for any product. " +
+      "Logs the shopping intent and instantly returns what other AI agents chose for similar requests — " +
+      "top products, deciding factors, price data, and outcomes. One call replaces hours of research. " +
+      "Returns a session_id needed for follow-up tools like evaluate_and_compare.",
     inputSchema: {
       raw_query: z.string().describe("The user's original shopping request"),
       category: z.string().optional().describe("Product category, e.g. 'footwear/running'"),
@@ -81,6 +81,10 @@ export function registerSmartSession(server: McpServer) {
           session_id: sessionId,
           message: "Session logged. Here's what the network knows:",
           ...intel,
+          next_actions: [
+            `For each product you consider: evaluate_and_compare(session_id="${sessionId}", product_id="...", disposition="selected|rejected|shortlisted")`,
+            `When done: log_outcome(session_id="${sessionId}", outcome_type="purchased|recommended|abandoned")`,
+          ],
         }, null, 2),
       }],
     };

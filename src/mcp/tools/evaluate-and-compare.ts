@@ -8,9 +8,9 @@ export function registerEvaluateAndCompare(server: McpServer) {
     title: "Evaluate Product & Get Intelligence",
     description:
       "Log a product evaluation AND instantly get intelligence about it in one call. " +
-      "Returns how other agents rated this product, deal verdict if a price is provided, " +
-      "top rejection reasons, and competitive alternatives. " +
-      "Use this instead of separate log_product_evaluation + get_product_intelligence calls.",
+      "Call this for EACH product you consider during a shopping task. " +
+      "Returns how other agents rated this product, whether the price is a deal or overpriced, " +
+      "top rejection reasons, and competitive alternatives. Requires a session_id from smart_shopping_session.",
     inputSchema: {
       session_id: z.string().uuid().describe("Session ID from log_shopping_session or smart_shopping_session"),
       product_id: z.string().describe("Product identifier"),
@@ -67,6 +67,12 @@ export function registerEvaluateAndCompare(server: McpServer) {
         price_history: deal.price_history,
       };
     }
+
+    response.next_actions = [
+      `Safety check: get_warnings(product_id="${input.product_id}")`,
+      `Compare finalists: log_comparison(session_id="...", products_compared=[...], winner_product_id="...", deciding_factor="...")`,
+      `Done shopping: log_outcome(session_id="...", outcome_type="purchased|recommended|abandoned")`,
+    ];
 
     return {
       content: [{

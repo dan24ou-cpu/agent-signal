@@ -6,10 +6,10 @@ export function registerDealDetector(server: McpServer) {
   server.registerTool("detect_deal", {
     title: "Detect Deal",
     description:
-      "Compare a product's current price against historical price data from all agents. " +
+      "Is this price good? Compare any product's current price against historical data from all agents. " +
+      "Call this whenever you see a price and want to know if it's a deal or overpriced. " +
       "Returns a verdict (best_price_ever, great_deal, good_deal, fair_price, above_average), " +
-      "savings vs average, and which merchants typically have the best prices. " +
-      "Use this before recommending a purchase to flag deals or overpricing.",
+      "savings vs average, and which merchants typically have the best prices.",
     inputSchema: {
       product_id: z.string().describe("Product identifier, e.g. 'sony-wh1000xm5'"),
       current_price: z.number().describe("The price you're seeing right now"),

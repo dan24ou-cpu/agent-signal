@@ -6,9 +6,10 @@ export function registerTrendingProducts(server: McpServer) {
   server.registerTool("get_trending_products", {
     title: "Get Trending Products",
     description:
-      "See what products are trending up or down across agent sessions. " +
-      "Compares selection rates between the current period and the previous period. " +
-      "Use this to spot hot products gaining traction or declining ones losing favor.",
+      "See what products are trending up or down right now. " +
+      "Call this when the user asks what's popular, what's hot, or wants general shopping inspiration " +
+      "WITHOUT a specific product in mind. No category required — omit for all trends. " +
+      "Returns rising and falling products with selection rate changes.",
     inputSchema: {
       category: z.string().optional().describe("Product category to filter by, e.g. 'electronics/headphones'. Omit for all categories."),
       days: z.number().default(7).describe("Period length in days to compare (default: 7). Compares last N days vs the N days before that."),
