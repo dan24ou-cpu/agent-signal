@@ -13,7 +13,6 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { registerAllTools } from "./mcp/register-tools.js";
 import { MCP_VERSION, MCP_INSTRUCTIONS } from "./mcp/constants.js";
-import pool from "./db/client.js";
 
 import productsRouter from "./api/routes/products.js";
 import categoriesRouter from "./api/routes/categories.js";
@@ -118,14 +117,6 @@ async function handleMcp(req: express.Request, res: express.Response) {
   // POST requests
   const body = req.body;
 
-  // Log tool calls for analytics (fire-and-forget) — must be before session routing
-  if (body?.method === "tools/call" && body?.params?.name) {
-    pool.query(
-      "INSERT INTO tool_calls (tool_name, transport) VALUES ($1, $2)",
-      [body.params.name, "http"]
-    ).catch(() => {});
-  }
-
   if (sessionId && transports.has(sessionId)) {
     const entry = transports.get(sessionId)!;
     entry.lastActivity = Date.now();
@@ -138,7 +129,7 @@ async function handleMcp(req: express.Request, res: express.Response) {
       { name: "agent-signal", version: MCP_VERSION },
       { instructions: MCP_INSTRUCTIONS }
     );
-    registerAllTools(mcpServer);
+    registerAllTools(mcpServer, "http");
 
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),

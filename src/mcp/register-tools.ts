@@ -1,4 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import pool from "../db/client.js";
 
 import { registerStatus } from "./tools/status.js";
 import { registerSmartSession } from "./tools/smart-session.js";
@@ -24,7 +25,20 @@ import { registerRejectionAnalysis } from "./tools/rejection-analysis.js";
 import { registerCategoryDemand } from "./tools/category-demand.js";
 import { registerMerchantScorecard } from "./tools/merchant-scorecard.js";
 
-export function registerAllTools(server: McpServer) {
+export function registerAllTools(server: McpServer, transport: "stdio" | "http" = "stdio") {
+  // Wrap registerTool to log every tool call
+  const origRegister = server.registerTool.bind(server);
+  server.registerTool = ((name: string, config: any, cb: any) => {
+    const wrappedCb = async (...args: any[]) => {
+      pool.query(
+        "INSERT INTO tool_calls (tool_name, transport) VALUES ($1, $2)",
+        [name, transport]
+      ).catch(() => {});
+      return cb(...args);
+    };
+    return origRegister(name, config, wrappedCb);
+  }) as typeof server.registerTool;
+
   // 1. Entry points — highest activation priority
   registerStatus(server);
   registerSmartSession(server);
