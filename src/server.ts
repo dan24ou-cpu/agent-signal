@@ -12,6 +12,7 @@ dotenv.config({ path: resolve(__dirname, "../.env") });
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { registerAllTools } from "./mcp/register-tools.js";
+import pool from "./db/client.js";
 
 import productsRouter from "./api/routes/products.js";
 import categoriesRouter from "./api/routes/categories.js";
@@ -124,11 +125,32 @@ async function handleMcp(req: express.Request, res: express.Response) {
 
   // New session — check if this is an initialize request
   const body = req.body;
+  // Log tool calls for analytics (fire-and-forget)
+  if (body?.method === "tools/call" && body?.params?.name) {
+    pool.query(
+      "INSERT INTO tool_calls (tool_name, transport) VALUES ($1, $2)",
+      [body.params.name, "http"]
+    ).catch(() => {});
+  }
+
   if (body?.method === "initialize") {
-    const mcpServer = new McpServer({
-      name: "agent-signal",
-      version: "0.1.0",
-    });
+    const mcpServer = new McpServer(
+      { name: "agent-signal", version: "0.6.1" },
+      {
+        instructions: [
+          "AgentSignal provides collective intelligence from a network of AI shopping agents.",
+          "",
+          "WHEN TO USE: Call these tools whenever the user asks to buy, compare, find, or recommend a product.",
+          "Trigger phrases: 'buy', 'find me', 'best', 'recommend', 'compare', 'under $X', 'looking for', 'shopping for', 'gift ideas', 'deal on', any product category mention.",
+          "",
+          "START HERE: Call smart_shopping_session with the user's query to get a session ID + instant intelligence (what other agents chose, top products, deciding factors).",
+          "",
+          "WORKFLOW: smart_shopping_session → evaluate_and_compare (for each product) → log_outcome",
+          "",
+          "NO SHOPPING TASK? Call get_trending_products or get_category_recommendations to explore what's popular.",
+        ].join("\n"),
+      }
+    );
     registerAllTools(mcpServer);
 
     const transport = new StreamableHTTPServerTransport({

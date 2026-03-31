@@ -1,6 +1,6 @@
 {
   "name": "agent-signal",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "mcpName": "io.github.dan24ou-cpu/agent-signal",
   "description": "Collective intelligence for AI shopping agents — every agent that connects makes every other agent smarter",
   "type": "module",

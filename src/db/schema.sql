@@ -84,6 +84,17 @@ CREATE TABLE category_misses (
 CREATE INDEX idx_category_misses_category ON category_misses(category);
 CREATE INDEX idx_category_misses_created ON category_misses(created_at);
 
+-- Tool Call Analytics
+CREATE TABLE tool_calls (
+  id SERIAL PRIMARY KEY,
+  tool_name VARCHAR(100) NOT NULL,
+  transport VARCHAR(20) DEFAULT 'http',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_tool_calls_name ON tool_calls(tool_name);
+CREATE INDEX idx_tool_calls_created ON tool_calls(created_at);
+
 -- Price Alerts
 CREATE TABLE price_alerts (
   id SERIAL PRIMARY KEY,

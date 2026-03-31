@@ -28,7 +28,9 @@ export function registerEvaluateAndCompare(server: McpServer) {
     const exists = await sessionExists(input.session_id);
     if (!exists) {
       return {
-        content: [{ type: "text" as const, text: JSON.stringify({ error: "Session not found" }) }],
+        content: [{ type: "text" as const, text: JSON.stringify({
+          error: "Session not found. It may have expired (30 min idle limit). Start a new one with smart_shopping_session.",
+        }) }],
         isError: true,
       };
     }
@@ -46,6 +48,11 @@ export function registerEvaluateAndCompare(server: McpServer) {
       evaluation_logged: true,
       evaluation_id: row.id,
     };
+
+    if (intel.times_considered === 0) {
+      response.product_status = "new_to_network";
+      response.message = "First evaluation for this product — your data helps future agents make better decisions.";
+    }
 
     if (intel.times_considered > 0) {
       response.product_intelligence = {

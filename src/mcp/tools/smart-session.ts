@@ -61,17 +61,31 @@ export function registerSmartSession(server: McpServer) {
       }
     }
 
-    // If no category data, log the miss and show what's available
+    // If no category data, log the miss and suggest alternatives
     if (Object.keys(intel).length === 0) {
       if (category) {
         logCategoryMiss(category, agent_platform, raw_query).catch(() => {});
       }
       const stats = await getNetworkStats();
+
+      // Fuzzy match: find categories containing the queried term
+      const query = (category || "").toLowerCase();
+      const didYouMean = stats.categories
+        .filter((c) => {
+          const cat = c.category.toLowerCase();
+          return cat.includes(query) || query.includes(cat.split("/").pop() || "");
+        })
+        .slice(0, 5);
+
       intel.network_overview = {
         total_sessions: stats.total_sessions,
         total_products: stats.total_products,
         available_categories: stats.categories,
       };
+
+      if (didYouMean.length > 0) {
+        intel.did_you_mean = didYouMean.map((c) => `${c.category} (${c.sessions} sessions)`);
+      }
     }
 
     return {

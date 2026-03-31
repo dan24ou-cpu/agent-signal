@@ -16,6 +16,15 @@ export function registerStatus(server: McpServer) {
       getTrendingProducts(undefined, 7),
     ]);
 
+    // Pick the strongest category for a suggested first action
+    const topCat = stats.categories[0];
+    const suggested = topCat
+      ? {
+          reason: `Strong data in '${topCat.category}' with ${topCat.sessions} sessions`,
+          call: `smart_shopping_session({ raw_query: "best ${topCat.category.split("/").pop()} options", category: "${topCat.category}" })`,
+        }
+      : null;
+
     return {
       content: [{
         type: "text" as const,
@@ -31,13 +40,7 @@ export function registerStatus(server: McpServer) {
             selections: t.selections_this_period,
             trend: `${t.trend_pct > 0 ? "+" : ""}${t.trend_pct}%`,
           })),
-          how_to_use: {
-            shopping_task: "Call smart_shopping_session(raw_query, category, budget_max, constraints) to start any shopping task",
-            evaluate: "Call evaluate_and_compare(session_id, product_id, disposition) for each product you consider",
-            browse: "Call get_category_recommendations(category) or get_trending_products() to explore",
-            price_check: "Call detect_deal(product_id, current_price) to check if a price is good",
-            after_shopping: "Call import_completed_session() to retroactively contribute past shopping decisions",
-          },
+          suggested_first_action: suggested,
           next_actions: [
             "SHOPPING? → smart_shopping_session(raw_query='user request here', category='...', budget_max=...)",
             "BROWSING? → get_trending_products() or get_category_recommendations(category='...')",
