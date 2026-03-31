@@ -15,7 +15,10 @@ export function registerCategoryRecommendations(server: McpServer) {
       budget_max: z.number().optional().describe("Optional budget ceiling to filter recommendations"),
     },
   }, async ({ category, budget_max }) => {
-    const recs = await getCategoryRecommendations(category, budget_max);
+    const [recs, subcats] = await Promise.all([
+      getCategoryRecommendations(category, budget_max),
+      getSubcategoryBreakdown(category),
+    ]);
 
     if (recs.total_sessions === 0) {
       logCategoryMiss(category, undefined, "get_category_recommendations").catch(() => {});
@@ -33,8 +36,6 @@ export function registerCategoryRecommendations(server: McpServer) {
       };
     }
 
-    // Add subcategory breakdown for parent categories
-    const subcats = await getSubcategoryBreakdown(category);
     const response: Record<string, unknown> = { ...recs };
     if (subcats.length > 0) {
       response.subcategories = subcats;

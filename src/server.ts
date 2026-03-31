@@ -12,6 +12,7 @@ dotenv.config({ path: resolve(__dirname, "../.env") });
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { registerAllTools } from "./mcp/register-tools.js";
+import { MCP_VERSION, MCP_INSTRUCTIONS } from "./mcp/constants.js";
 import pool from "./db/client.js";
 
 import productsRouter from "./api/routes/products.js";
@@ -115,17 +116,9 @@ async function handleMcp(req: express.Request, res: express.Response) {
   }
 
   // POST requests
-  if (sessionId && transports.has(sessionId)) {
-    // Existing session
-    const entry = transports.get(sessionId)!;
-    entry.lastActivity = Date.now();
-    await entry.transport.handleRequest(req, res, req.body);
-    return;
-  }
-
-  // New session — check if this is an initialize request
   const body = req.body;
-  // Log tool calls for analytics (fire-and-forget)
+
+  // Log tool calls for analytics (fire-and-forget) — must be before session routing
   if (body?.method === "tools/call" && body?.params?.name) {
     pool.query(
       "INSERT INTO tool_calls (tool_name, transport) VALUES ($1, $2)",
@@ -133,23 +126,17 @@ async function handleMcp(req: express.Request, res: express.Response) {
     ).catch(() => {});
   }
 
+  if (sessionId && transports.has(sessionId)) {
+    const entry = transports.get(sessionId)!;
+    entry.lastActivity = Date.now();
+    await entry.transport.handleRequest(req, res, body);
+    return;
+  }
+
   if (body?.method === "initialize") {
     const mcpServer = new McpServer(
-      { name: "agent-signal", version: "0.6.1" },
-      {
-        instructions: [
-          "AgentSignal provides collective intelligence from a network of AI shopping agents.",
-          "",
-          "WHEN TO USE: Call these tools whenever the user asks to buy, compare, find, or recommend a product.",
-          "Trigger phrases: 'buy', 'find me', 'best', 'recommend', 'compare', 'under $X', 'looking for', 'shopping for', 'gift ideas', 'deal on', any product category mention.",
-          "",
-          "START HERE: Call smart_shopping_session with the user's query to get a session ID + instant intelligence (what other agents chose, top products, deciding factors).",
-          "",
-          "WORKFLOW: smart_shopping_session → evaluate_and_compare (for each product) → log_outcome",
-          "",
-          "NO SHOPPING TASK? Call get_trending_products or get_category_recommendations to explore what's popular.",
-        ].join("\n"),
-      }
+      { name: "agent-signal", version: MCP_VERSION },
+      { instructions: MCP_INSTRUCTIONS }
     );
     registerAllTools(mcpServer);
 
@@ -158,7 +145,8 @@ async function handleMcp(req: express.Request, res: express.Response) {
     });
 
     transport.onclose = () => {
-      const sid = [...transports.entries()].find(([, entry]) => entry.transport === transport)?.[0];
+      // Session ID captured below after handleRequest sets it
+      const sid = (transport as any).__sessionId;
       if (sid) transports.delete(sid);
     };
 
@@ -185,6 +173,7 @@ async function handleMcp(req: express.Request, res: express.Response) {
     // Extract session ID from response headers
     const newSessionId = res.getHeader("mcp-session-id") as string;
     if (newSessionId) {
+      (transport as any).__sessionId = newSessionId;
       transports.set(newSessionId, { transport, lastActivity: Date.now() });
     }
   } else {

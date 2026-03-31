@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { cachedGetSimilarSessionOutcomes as getSimilarSessionOutcomes } from "../../db/queries.js";
+import { cachedGetSimilarSessionOutcomes as getSimilarSessionOutcomes, cachedGetCategoryRecommendations as getCategoryRecommendations, cachedGetNetworkStats as getNetworkStats, logCategoryMiss } from "../../db/queries.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerSimilarSessions(server: McpServer) {
@@ -19,8 +19,6 @@ export function registerSimilarSessions(server: McpServer) {
     const result = await getSimilarSessionOutcomes(category, constraints, budget_max);
 
     if (result.similar_sessions_found === 0) {
-      // Try broader match — same category without constraint filter
-      const { getCategoryRecommendations } = await import("../../db/queries.js");
       const broader = await getCategoryRecommendations(category);
 
       if (broader.total_sessions > 0) {
@@ -39,7 +37,6 @@ export function registerSimilarSessions(server: McpServer) {
         };
       }
 
-      const { getNetworkStats, logCategoryMiss } = await import("../../db/queries.js");
       logCategoryMiss(category, undefined, "get_similar_session_outcomes").catch(() => {});
       const stats = await getNetworkStats();
       return {

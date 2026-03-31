@@ -1434,8 +1434,6 @@ export async function getTrendingProducts(category?: string, days = 7) {
     : "";
   const params: (string | number)[] = [days];
   if (category) params.push(category);
-  const catParam = category ? `$2` : "";
-
   // Current period vs previous period
   const [current, previous] = await Promise.all([
     pool.query(
