@@ -108,6 +108,19 @@ CREATE TABLE price_alerts (
 CREATE INDEX idx_price_alerts_product ON price_alerts(product_id);
 CREATE INDEX idx_price_alerts_active ON price_alerts(active);
 
+-- Wishlists
+CREATE TABLE wishlists (
+  id SERIAL PRIMARY KEY,
+  product_id VARCHAR(255) NOT NULL,
+  target_price NUMERIC(10, 2),
+  agent_platform VARCHAR(100) DEFAULT 'unknown',
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_wishlists_product ON wishlists(product_id);
+CREATE INDEX idx_wishlists_active ON wishlists(active);
+
 -- Product Insights (pre-computed aggregates)
 CREATE TABLE product_insights (
   product_id VARCHAR(255) NOT NULL,

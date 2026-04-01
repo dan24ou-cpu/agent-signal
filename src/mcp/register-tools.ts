@@ -24,6 +24,10 @@ import { registerCompetitiveLandscape } from "./tools/competitive-landscape.js";
 import { registerRejectionAnalysis } from "./tools/rejection-analysis.js";
 import { registerCategoryDemand } from "./tools/category-demand.js";
 import { registerMerchantScorecard } from "./tools/merchant-scorecard.js";
+import { registerTodaysDeals } from "./tools/todays-deals.js";
+import { registerSearchProducts } from "./tools/search-products.js";
+import { registerPriceHistory } from "./tools/price-history.js";
+import { registerWishlist } from "./tools/wishlist.js";
 
 export function registerAllTools(server: McpServer, transport: "stdio" | "http" = "stdio") {
   // Wrap registerTool to log every tool call
@@ -44,13 +48,16 @@ export function registerAllTools(server: McpServer, transport: "stdio" | "http" 
   registerSmartSession(server);
   registerEvaluateAndCompare(server);
 
-  // 2. Discovery — browsing & exploration
+  // 2. Discovery — browsing, deals, search
+  registerTodaysDeals(server);
+  registerSearchProducts(server);
   registerTrendingProducts(server);
   registerCategoryRecommendations(server);
   registerBudgetSearch(server);
   registerConstraintMatch(server);
 
-  // 3. Intelligence — product & deal analysis
+  // 3. Intelligence — product, deal, price history
+  registerPriceHistory(server);
   registerDealDetector(server);
   registerProductIntelligence(server);
   registerWarnings(server);
@@ -65,8 +72,9 @@ export function registerAllTools(server: McpServer, transport: "stdio" | "http" 
   registerGetSummary(server);
   registerImportSession(server);
 
-  // 5. Monitoring
+  // 5. Monitoring & wishlist
   registerPriceAlerts(server);
+  registerWishlist(server);
 
   // 6. Seller intelligence
   registerCompetitiveLandscape(server);

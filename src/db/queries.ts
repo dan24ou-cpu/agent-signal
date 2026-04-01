@@ -1617,6 +1617,221 @@ export async function getTopCategoryMisses(limit = 10) {
   }));
 }
 
+// ── Daily deals ──
+
+export async function getTodaysDeals() {
+  // Products with the best prices seen in the last 7 days vs their historical average
+  const result = await pool.query(
+    `WITH recent_prices AS (
+       SELECT product_id, merchant_id, price_at_time,
+              ROW_NUMBER() OVER (PARTITION BY product_id ORDER BY price_at_time ASC) AS rn
+       FROM product_evaluations
+       WHERE price_at_time IS NOT NULL
+         AND created_at > NOW() - INTERVAL '7 days'
+     ),
+     historical AS (
+       SELECT product_id,
+              ROUND(AVG(price_at_time), 2) AS avg_price,
+              MIN(price_at_time) AS all_time_low,
+              COUNT(*) AS total_sightings
+       FROM product_evaluations
+       WHERE price_at_time IS NOT NULL
+       GROUP BY product_id
+       HAVING COUNT(*) >= 3
+     )
+     SELECT r.product_id, r.merchant_id, r.price_at_time AS current_price,
+            h.avg_price, h.all_time_low, h.total_sightings,
+            ROUND((h.avg_price - r.price_at_time), 2) AS savings,
+            ROUND(((h.avg_price - r.price_at_time) / h.avg_price * 100), 1) AS pct_off
+     FROM recent_prices r
+     JOIN historical h ON h.product_id = r.product_id
+     WHERE r.rn = 1
+       AND r.price_at_time < h.avg_price * 0.9
+     ORDER BY pct_off DESC
+     LIMIT 20`
+  );
+
+  return result.rows.map((r) => ({
+    product_id: r.product_id,
+    merchant_id: r.merchant_id,
+    current_price: Number(r.current_price),
+    avg_price: Number(r.avg_price),
+    all_time_low: Number(r.all_time_low),
+    savings: Number(r.savings),
+    pct_off: Number(r.pct_off),
+    is_all_time_low: Number(r.current_price) <= Number(r.all_time_low),
+  }));
+}
+
+// ── Product search ──
+
+export async function searchProducts(query: string, category?: string, limit = 15) {
+  const catFilter = category
+    ? `AND (s.category = $2 OR s.category LIKE $2 || '/%')`
+    : "";
+  const params: (string | number)[] = [`%${query.toLowerCase()}%`];
+  if (category) params.push(category);
+
+  const result = await pool.query(
+    `SELECT e.product_id,
+            COUNT(*) AS times_seen,
+            COUNT(*) FILTER (WHERE e.disposition = 'selected') AS times_selected,
+            ROUND(AVG(e.match_score), 2) AS avg_score,
+            ROUND(AVG(e.price_at_time), 2) AS avg_price,
+            MIN(e.price_at_time) AS lowest_price,
+            ARRAY_AGG(DISTINCT e.merchant_id) FILTER (WHERE e.merchant_id IS NOT NULL) AS merchants,
+            ARRAY_AGG(DISTINCT s.category) FILTER (WHERE s.category IS NOT NULL) AS categories
+     FROM product_evaluations e
+     JOIN shopping_sessions s ON s.session_id = e.session_id
+     WHERE LOWER(e.product_id) LIKE $1
+       ${catFilter}
+     GROUP BY e.product_id
+     ORDER BY times_selected DESC, times_seen DESC
+     LIMIT ${Number(limit)}`,
+    params
+  );
+
+  return result.rows.map((r) => ({
+    product_id: r.product_id,
+    times_seen: Number(r.times_seen),
+    times_selected: Number(r.times_selected),
+    selection_rate: Number(r.times_seen) > 0
+      ? Math.round((Number(r.times_selected) / Number(r.times_seen)) * 100)
+      : 0,
+    avg_match_score: r.avg_score ? Number(r.avg_score) : null,
+    avg_price: r.avg_price ? Number(r.avg_price) : null,
+    lowest_price: r.lowest_price ? Number(r.lowest_price) : null,
+    merchants: r.merchants?.filter(Boolean) ?? [],
+    categories: r.categories?.filter(Boolean) ?? [],
+  }));
+}
+
+// ── Price history ──
+
+export async function getPriceHistory(productId: string) {
+  const [timeline, merchantPrices, stats] = await Promise.all([
+    pool.query(
+      `SELECT DATE_TRUNC('day', created_at) AS day,
+              ROUND(AVG(price_at_time), 2) AS avg_price,
+              MIN(price_at_time) AS low,
+              MAX(price_at_time) AS high,
+              COUNT(*) AS sightings
+       FROM product_evaluations
+       WHERE product_id = $1 AND price_at_time IS NOT NULL
+       GROUP BY DATE_TRUNC('day', created_at)
+       ORDER BY day DESC
+       LIMIT 30`,
+      [productId]
+    ),
+    pool.query(
+      `SELECT merchant_id,
+              ROUND(AVG(price_at_time), 2) AS avg_price,
+              MIN(price_at_time) AS best_price,
+              MAX(price_at_time) AS worst_price,
+              COUNT(*) AS sightings
+       FROM product_evaluations
+       WHERE product_id = $1 AND price_at_time IS NOT NULL AND merchant_id IS NOT NULL
+       GROUP BY merchant_id
+       ORDER BY avg_price ASC`,
+      [productId]
+    ),
+    pool.query(
+      `SELECT
+         COUNT(*) AS total_sightings,
+         ROUND(AVG(price_at_time), 2) AS avg_price,
+         MIN(price_at_time) AS all_time_low,
+         MAX(price_at_time) AS all_time_high,
+         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_at_time) AS median
+       FROM product_evaluations
+       WHERE product_id = $1 AND price_at_time IS NOT NULL`,
+      [productId]
+    ),
+  ]);
+
+  const s = stats.rows[0];
+  return {
+    product_id: productId,
+    summary: s?.total_sightings > 0 ? {
+      total_sightings: Number(s.total_sightings),
+      avg_price: Number(s.avg_price),
+      median_price: s.median ? Number(s.median) : null,
+      all_time_low: Number(s.all_time_low),
+      all_time_high: Number(s.all_time_high),
+    } : null,
+    daily_prices: timeline.rows.map((r) => ({
+      date: r.day,
+      avg: Number(r.avg_price),
+      low: Number(r.low),
+      high: Number(r.high),
+      sightings: Number(r.sightings),
+    })),
+    by_merchant: merchantPrices.rows.map((r) => ({
+      merchant_id: r.merchant_id,
+      avg_price: Number(r.avg_price),
+      best_price: Number(r.best_price),
+      worst_price: Number(r.worst_price),
+      sightings: Number(r.sightings),
+    })),
+  };
+}
+
+// ── Wishlist ──
+
+export async function addToWishlist(productId: string, targetPrice?: number, agentPlatform?: string) {
+  const result = await pool.query(
+    `INSERT INTO wishlists (product_id, target_price, agent_platform)
+     VALUES ($1, $2, $3)
+     RETURNING *`,
+    [productId, targetPrice ?? null, agentPlatform ?? "unknown"]
+  );
+  return result.rows[0];
+}
+
+export async function getWishlist(agentPlatform?: string) {
+  const filter = agentPlatform ? `AND agent_platform = $1` : "";
+  const params = agentPlatform ? [agentPlatform] : [];
+
+  const result = await pool.query(
+    `SELECT w.id, w.product_id, w.target_price, w.agent_platform, w.created_at,
+            sub.current_lowest, sub.cheapest_merchant
+     FROM wishlists w
+     LEFT JOIN LATERAL (
+       SELECT MIN(e.price_at_time) AS current_lowest,
+              MIN(e.merchant_id) FILTER (WHERE e.price_at_time = sub2.min_price) AS cheapest_merchant
+       FROM product_evaluations e
+       LEFT JOIN LATERAL (
+         SELECT MIN(price_at_time) AS min_price
+         FROM product_evaluations
+         WHERE product_id = w.product_id AND price_at_time IS NOT NULL
+           AND created_at > NOW() - INTERVAL '7 days'
+       ) sub2 ON true
+       WHERE e.product_id = w.product_id
+         AND e.price_at_time IS NOT NULL
+         AND e.created_at > NOW() - INTERVAL '7 days'
+     ) sub ON true
+     WHERE w.active = true ${filter}
+     ORDER BY w.created_at DESC`,
+    params
+  );
+
+  return result.rows.map((r) => ({
+    id: r.id,
+    product_id: r.product_id,
+    target_price: r.target_price ? Number(r.target_price) : null,
+    current_lowest: r.current_lowest ? Number(r.current_lowest) : null,
+    cheapest_merchant: r.cheapest_merchant,
+    price_alert_triggered: r.target_price && r.current_lowest
+      ? Number(r.current_lowest) <= Number(r.target_price)
+      : false,
+    agent_platform: r.agent_platform,
+    created_at: r.created_at,
+  }));
+}
+
+export async function removeFromWishlist(id: number) {
+  await pool.query(`UPDATE wishlists SET active = false WHERE id = $1`, [id]);
+}
+
 // ── Cached read functions (2-min TTL) ──
 // Write functions are NOT cached — they always hit the DB.
 // Read functions that aggregate data are cached to avoid redundant queries.
@@ -1638,3 +1853,6 @@ export const cachedGetMerchantScorecard = cached("merchScore", getMerchantScorec
 export const cachedGetTrendingProducts = cached("trending", getTrendingProducts, CACHE_TTL);
 export const cachedGetBudgetProducts = cached("budget", getBudgetProducts, CACHE_TTL);
 export const cachedGetSubcategoryBreakdown = cached("subcat", getSubcategoryBreakdown, CACHE_TTL);
+export const cachedGetTodaysDeals = cached("deals", getTodaysDeals, CACHE_TTL);
+export const cachedSearchProducts = cached("search", searchProducts, CACHE_TTL);
+export const cachedGetPriceHistory = cached("priceHist", getPriceHistory, CACHE_TTL);
