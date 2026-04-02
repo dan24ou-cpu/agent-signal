@@ -1,4 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { randomUUID } from "crypto";
 import pool from "../db/client.js";
 
 import { registerStatus } from "./tools/status.js";
@@ -29,15 +30,42 @@ import { registerSearchProducts } from "./tools/search-products.js";
 import { registerPriceHistory } from "./tools/price-history.js";
 import { registerWishlist } from "./tools/wishlist.js";
 
+// Read-only tools that indicate browsing behavior
+const BROWSE_TOOLS = new Set([
+  "agent_signal_status", "get_todays_deals", "search_products",
+  "get_trending_products", "get_category_recommendations", "get_budget_products",
+  "get_product_intelligence", "get_price_history", "detect_deal",
+  "get_similar_session_outcomes", "get_constraint_match", "get_warnings",
+  "check_merchant_reliability", "get_competitive_landscape",
+  "get_rejection_analysis", "get_category_demand", "get_merchant_scorecard",
+]);
+
 export function registerAllTools(server: McpServer, transport: "stdio" | "http" = "stdio") {
-  // Wrap registerTool to log every tool call
+  // Each server instance gets a browse session ID for tracking engagement
+  const browseSessionId = `browse-${randomUUID().slice(0, 8)}`;
+
+  // Wrap registerTool to log every tool call + browse events
   const origRegister = server.registerTool.bind(server);
   server.registerTool = ((name: string, config: any, cb: any) => {
     const wrappedCb = async (...args: any[]) => {
+      // Log tool call
       pool.query(
         "INSERT INTO tool_calls (tool_name, transport) VALUES ($1, $2)",
         [name, transport]
       ).catch(() => {});
+
+      // Log browse event for read-only tools
+      if (BROWSE_TOOLS.has(name)) {
+        const inputArg = args[0] as Record<string, unknown> | undefined;
+        const context = inputArg ? Object.fromEntries(
+          Object.entries(inputArg).filter(([, v]) => v !== undefined).slice(0, 5)
+        ) : {};
+        pool.query(
+          "INSERT INTO browse_events (browse_session_id, tool_name, query_context, transport) VALUES ($1, $2, $3, $4)",
+          [browseSessionId, name, JSON.stringify(context), transport]
+        ).catch(() => {});
+      }
+
       return cb(...args);
     };
     return origRegister(name, config, wrappedCb);

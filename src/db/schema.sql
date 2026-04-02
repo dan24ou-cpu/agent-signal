@@ -108,6 +108,19 @@ CREATE TABLE price_alerts (
 CREATE INDEX idx_price_alerts_product ON price_alerts(product_id);
 CREATE INDEX idx_price_alerts_active ON price_alerts(active);
 
+-- Browse Events (tracks read-only tool engagement per connection)
+CREATE TABLE browse_events (
+  id SERIAL PRIMARY KEY,
+  browse_session_id VARCHAR(100) NOT NULL,
+  tool_name VARCHAR(100) NOT NULL,
+  query_context JSONB DEFAULT '{}',
+  transport VARCHAR(20) DEFAULT 'stdio',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_browse_session ON browse_events(browse_session_id);
+CREATE INDEX idx_browse_created ON browse_events(created_at);
+
 -- Wishlists
 CREATE TABLE wishlists (
   id SERIAL PRIMARY KEY,
